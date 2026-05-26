@@ -130,6 +130,69 @@ Claude 需要解析出：
 2. **完整 Profile**：仅对初筛通过（⭐⭐ 及以上）的候选人获取详情
 3. **未通过候选人**：保留搜索基础信息，不获取完整 Profile
 
+#### Subagent 模式（≥50 人需获取 Profile 时自动启用）
+
+当粗筛后需要获取 Profile 的候选人 **≥ 50 人**（通常对应搜索 ≥ 200 人的场景），启用 subagent 模式以节省主对话上下文：
+
+**触发条件**：粗筛通过人数 ≥ 50
+**不触发**：粗筛通过人数 < 50，在主对话内直接执行
+
+**Subagent 职责**：
+1. 接收：候选人列表（vanity + name + headline）、筛选标准、话术类型、搜索课题
+2. 执行：逐个获取 Profile → 精筛评级 → 生成个性化话术
+3. 返回：精筛结果 JSON（仅含通过者的摘要信息 + 话术），格式如下：
+
+```json
+{
+  "summary": {"total_fetched": 80, "passed": 30, "failed": 50},
+  "passed_candidates": [
+    {
+      "vanity": "...",
+      "urn": "...",
+      "name": "...",
+      "headline": "...",
+      "current_company": "...",
+      "current_title": "...",
+      "target_experience": "NVIDIA | Sr Architect | 2015-2020",
+      "other_experience": "Google | Staff SWE | 2020-至今",
+      "education": "MIT | PhD | CS",
+      "rating": "⭐⭐⭐",
+      "note": "推荐原因",
+      "connect_message": "Hi Brian, I'm Yujia, co-founder of FundaAI..."
+    }
+  ],
+  "failed_candidates": [
+    {"name": "...", "headline": "...", "reason": "排除原因"}
+  ]
+}
+```
+
+**Subagent prompt 模板**：
+```
+你是 LinkedIn Profile 获取与精筛 agent。
+
+任务：
+1. 对以下 {N} 个候选人逐个获取 Profile（使用 lib/voyager.js 的 getProfileScript）
+2. 按筛选标准精筛，评级为 ⭐⭐⭐/⭐⭐/⭐/不符合
+3. 为筛选通过的候选人生成建联话术（读取 lib/connect-templates.json）
+4. 返回上述 JSON 格式结果
+
+筛选标准：{filter_criteria}
+话术类型：{template_type}
+搜索课题：{topic}
+候选人列表：{candidates_json}
+
+安全规则：Profile 之间间隔 3-5s（随机）。遇 401/403/429 立即停止并在结果中标注。
+```
+
+**主对话流程（subagent 模式）**：
+1. 完成搜索 + 粗筛 → 判断通过人数 ≥ 50
+2. 启动 subagent（后台运行），传入候选人列表
+3. 等待 subagent 返回精筛结果
+4. 主对话接收结果 → 生成 Excel → 展示给用户 review
+
+#### 直接模式（< 50 人）
+
 使用 `lib/voyager.js` 中的 `getProfileScript(vanity)` 生成 Profile 获取脚本。
 
 调用方式：`opencli browser linkedin eval "<getProfileScript 输出的脚本>"`
