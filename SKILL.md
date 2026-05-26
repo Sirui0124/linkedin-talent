@@ -96,63 +96,21 @@ Claude 需要解析出：
 - Apple/苹果: 162479
 - Meta/Facebook: 10667
 
-如不在映射中，通过浏览器 typeahead 查找：
-```bash
-opencli browser linkedin eval "
-(async () => {
-  const csrf = document.cookie.match(/JSESSIONID=\\\"?([^;\\\"]+)/)?.[1] || '';
-  const resp = await fetch('https://www.linkedin.com/voyager/api/graphql?variables=(query:COMPANY_NAME,types:List(COMPANY),count:5)&queryId=voyagerSearchDashReusableTypeahead.57a4fa1d8a1d8c5ac48d73e28f24a94a', {
-    headers: { 'Accept': 'application/vnd.linkedin.normalized+json+2.1', 'csrf-token': csrf },
-    credentials: 'include',
-  });
-  const data = await resp.json();
-  const companies = (data.included || []).filter(i => (i.entityUrn || '').includes('fsd_company'));
-  return JSON.stringify(companies.map(c => ({id: c.entityUrn?.match(/\\d+/)?.[0], name: c.name})));
-})()
-"
-```
+如不在映射中，使用 `lib/voyager.js` 中的 `findCompanyIdScript(companyName)` 通过浏览器 typeahead 查找。
+
+调用方式：`opencli browser linkedin eval "<findCompanyIdScript 输出的脚本>"`
 
 > **注意**：typeahead API 偶尔返回 500。如果失败，优先使用上方公司 ID 映射表。对于不在映射中的公司，可以在 LinkedIn 网页搜索该公司后从 URL 中提取 company ID。
 
 ### 2.2 搜索（Voyager API 分页）
 
-**搜索脚本模板**（引用 `lib/voyager.js` 中的 `searchCandidatesScript`）：
+使用 `lib/voyager.js` 中的 `searchCandidatesScript(start, keywords, companyFilter)` 生成搜索脚本。
 
-```bash
-opencli browser linkedin eval "
-(async () => {
-  const csrf = document.cookie.match(/JSESSIONID=\\\"?([^;\\\"]+)/)?.[1] || '';
-  const start = START_VALUE;
-  const count = 20;
-  const keywords = 'KEYWORDS_HERE';
-  const companyFilter = 'COMPANY_FILTER_HERE';
-  const url = 'https://www.linkedin.com/voyager/api/graphql?variables=(start:' + start + ',count:' + count + ',origin:FACETED_SEARCH,query:(keywords:' + encodeURIComponent(keywords) + ',flagshipSearchIntent:SEARCH_SRP,queryParameters:List(' + companyFilter + '(key:resultType,value:List(PEOPLE)))))&queryId=voyagerSearchDashClusters.66adc6056cf4138949ca5dcb31bb1749';
-  const resp = await fetch(url, {
-    headers: { 'Accept': 'application/vnd.linkedin.normalized+json+2.1', 'csrf-token': csrf },
-    credentials: 'include',
-  });
-  if (!resp.ok) return JSON.stringify({error: resp.status});
-  const data = await resp.json();
-  const items = (data.included || []).filter(i => i.navigationUrl && i.navigationUrl.includes('/in/'));
-  return JSON.stringify({
-    total: data.data?.paging?.total || items.length,
-    results: items.map(i => ({
-      name: i.title?.text || '',
-      headline: i.primarySubtitle?.text || '',
-      location: i.secondarySubtitle?.text || '',
-      profile_url: i.navigationUrl,
-      vanity: (i.navigationUrl || '').match(/\\/in\\/([^/?]+)/)?.[1] || '',
-      urn: (i.entityUrn || i.targetUrn || '').match(/(urn:li:fsd_profile:[^,)]+)/)?.[0] || '',
-      connectionDegree: i.entityCustomTrackingInfo?.memberDistance || i.badgeText?.text || '',
-    }))
-  });
-})()
-" 2>&1
-```
+调用方式：`opencli browser linkedin eval "<searchCandidatesScript 输出的脚本>" 2>&1`
 
 > **⚠️ CSRF 正则关键**：在 `opencli browser eval` 中，双引号需要用 `\\\"` 转义。正确模式为 `/JSESSIONID=\\\"?([^;\\\"]+)/`。不要用 `/JSESSIONID=\"?([^;\"]+)/`（shell 会吞掉引号导致 CSRF check failed）。
 
-**companyFilter 示例**：
+**companyFilter 参数**（传入 searchCandidatesScript）：
 - 当前公司：`(key:currentCompany,value:List(5765)),`
 - 前公司：`(key:pastCompany,value:List(1538)),`
 - 多公司：`(key:currentCompany,value:List(1053,3608)),`
@@ -172,39 +130,11 @@ opencli browser linkedin eval "
 2. **完整 Profile**：仅对初筛通过（⭐⭐ 及以上）的候选人获取详情
 3. **未通过候选人**：保留搜索基础信息，不获取完整 Profile
 
-**获取 Profile 脚本**（引用 `lib/voyager.js` 中的 `getProfileScript`）：
+使用 `lib/voyager.js` 中的 `getProfileScript(vanity)` 生成 Profile 获取脚本。
 
-```bash
-opencli browser linkedin eval "
-(async () => {
-  const csrf = document.cookie.match(/JSESSIONID=\\\"?([^;\\\"]+)/)?.[1] || '';
-  const vanity = 'VANITY_HERE';
-  const resp = await fetch('https://www.linkedin.com/voyager/api/identity/dash/profiles?q=memberIdentity&memberIdentity=' + vanity + '&decorationId=com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-93', {
-    headers: { 'Accept': 'application/vnd.linkedin.normalized+json+2.1', 'x-restli-protocol-version': '2.0.0', 'csrf-token': csrf },
-    credentials: 'include',
-  });
-  const data = await resp.json();
-  const inc = data.included || [];
-  const p = inc.find(i => (i.entityUrn||'').includes('fsd_profile') && i.firstName) || {};
-  const positions = inc.filter(i => (i['\$type']||'').includes('Position') && i.title);
-  const educations = inc.filter(i => (i['\$type']||'').includes('Education') && i.schoolName);
-  const skills = inc.filter(i => (i['\$type']||'').includes('Skill') && i.name);
-  return JSON.stringify({
-    urn: p.entityUrn || '',
-    firstName: p.firstName || '',
-    lastName: p.lastName || '',
-    headline: p.headline || '',
-    summary: (p.summary || '').slice(0, 500),
-    location: p.geoLocationName || '',
-    positions: positions.map(x => ({title: x.title, company: x.companyName, startYear: x.dateRange?.start?.year, endYear: x.dateRange?.end?.year, desc: (x.description||'').slice(0,150)})),
-    educations: educations.map(x => ({school: x.schoolName, degree: x.degreeName, field: x.fieldOfStudy})),
-    skills: skills.slice(0,10).map(x => x.name),
-  });
-})()
-"
-```
+调用方式：`opencli browser linkedin eval "<getProfileScript 输出的脚本>"`
 
-> **⚠️ Profile API 返回数据注意**：`data.included` 数组可能包含多个 profile 对象（特别是有关联推荐的情况）。用 `inc.find(i => i.entityUrn.includes('fsd_profile') && i.firstName)` 取第一个匹配的 profile 即可。如果返回的 firstName 与搜索结果中的 name 不一致，说明 API 返回了关联 profile，应标注"待验证"而非直接采信。
+> **⚠️ Profile API 返回数据注意**：`data.included` 数组可能包含多个 profile 对象（特别是有关联推荐的情况）。脚本已用 `inc.find(i => i.entityUrn.includes('fsd_profile') && i.firstName)` 取第一个匹配。如果返回的 firstName 与搜索结果中的 name 不一致，说明 API 返回了关联 profile，应标注"待验证"而非直接采信。
 
 ### 2.4 存储 JSON 到统一库
 
@@ -277,8 +207,9 @@ opencli browser linkedin eval "
 | H | 连接度 | 2度/3度 |
 | I | LinkedIn URL | profile_url |
 | J | 推荐度 | ⭐⭐⭐ / ⭐⭐ / ⭐ |
-| K | 备注 | 推荐原因或待验证说明 |
-| L | Connect状态 | 待确认/已发送/成功/失败 |
+| K | 建联话术 | 为该候选人生成的个性化 Connect 消息（≤250字符） |
+| L | 备注 | 推荐原因或待验证说明 |
+| M | Connect状态 | 待确认/已发送/成功/失败 |
 
 #### 经历输出格式（统一规范）
 
@@ -324,66 +255,108 @@ Google | SWE | 2018-至今
 - 表头行背景 `4472C4`，白色粗体
 - 经历列启用自动换行（wrap_text=True, vertical=top）
 
-### 2.6 向用户展示结果
+### 2.6 生成建联话术（Excel 同步写入 K 列）
 
-Excel 生成后，输出 markdown 摘要表格，并给出建议：
+在生成 Excel 时，为每个筛选通过的候选人生成个性化 Connect 消息，写入 K 列。
+
+#### 话术配置文件
+
+**所有话术参数读取自** `lib/connect-templates.json`，包括：
+- `sender` — 发送人身份信息（name, title, company, company_description）
+- `templates` — 两种话术类型的模板 + follow-up 模板
+- `personalization_rules` — 个性化亮点的选取规则和反面示例
+- `rate_range` — 报酬区间
+- `language_rules` — 语言选择规则
+
+用户可直接编辑该 JSON 文件来更新企业信息、调整模板措辞、修改报酬等，无需每次口头说明。
+
+#### 话术类型（每次搜索前向用户确认）
+
+| 类型 | 场景 | 风格 |
+|------|------|------|
+| type1_friendly | 先加好友，连接后再说明目的 | 轻松自然，不提项目细节 |
+| type2_direct | Connect 信息中直接提到付费研究咨询 | 开门见山，提及课题+付费 |
+
+#### 话术结构
+
+每条消息 = **模板骨架**（从配置文件读取）+ **个性化填充**（基于候选人 Profile），总长度 **200-300 字符**（从配置文件 min_chars/max_chars 读取）。
+
+**变量说明**：
+- `{firstName}` — 候选人名
+- `{senderName}` — 从 `sender.name` 读取
+- `{company}` — 从 `sender.company` 读取
+- `{topic}` — 本次搜索的研究课题（Phase 1 确认）
+- `{highlight}` — 从候选人 Profile 中提取的 1 个最相关亮点
+- `{rateRange}` — 从 `rate_range` 读取（用于 follow-up）
+
+#### 个性化亮点生成规则
+
+从 `personalization_rules.highlight_sources` 中按优先级选取：
+1. 候选人与本次课题最相关的职位+公司
+2. 具体技术/领域专长
+3. 相关领域年资
+
+**禁止**使用 `personalization_rules.avoid` 中列出的泛泛表达。
+
+#### 生成规则
+
+1. 每个筛选通过的候选人都必须生成话术（包括 ⭐ 级别）
+2. 如果 Profile 未获取（仅有搜索基础信息），基于 headline 生成
+3. 话术语言遵循 `language_rules`：默认英文，候选人中文姓名/headline 则用中文
+4. 生成后严格检查字符数，超出则压缩（优先缩短 highlight 部分）
+
+### 2.7 向用户展示结果
+
+Excel 生成后，输出 markdown 摘要表格 + **逐人话术预览**，供用户 review：
 
 ```
-搜索完成，共获取 N 个 Profile。
+搜索完成，共获取 N 个 Profile，筛选通过 P 人。
 
-| # | 姓名 | 当前职位@公司 | 符合筛选 | 建议 |
-|---|------|--------------|---------|------|
-| 1 | Alex Zhang | Game Strategy Analyst @ 腾讯 | NO | 当前在目标公司 |
-| 2 | Emma Lin | Senior Analyst @ Alibaba | YES | 前腾讯+现阿里 |
+| # | 姓名 | 当前职位@公司 | 推荐度 | 建联话术 |
+|---|------|--------------|--------|---------|
+| 1 | Emma Lin | Senior Analyst @ Alibaba | ⭐⭐⭐ | Hi Emma, I'm Yujia from FundaAI... |
+| 2 | David Chen | Product Manager @ ByteDance | ⭐⭐ | Hi David, I'm Yujia from FundaAI... |
 ...
 
-建议发送 Connect 的候选人：#2, #3（共 2 人）
-话术预览："Hi {name}, ..."
+话术类型：类型2（直接专家访谈）
+字符数检查：全部 ≤ 250 ✓
 
-请确认：
-1. 对以上建议的候选人发送 Connect？
-2. 要调整发送名单吗？
-3. 话术需要修改吗？
+请 review：
+1. 话术整体 OK？需要调整模板/语气/用词？
+2. 某个候选人需要单独修改话术？（回复"#3 改成..."）
+3. 要移除某些候选人不发送？
+4. 确认无误，开始发送？
 ```
 
-**等待用户确认后才进入 Phase 3。**
+**必须等用户逐条确认话术后才进入 Phase 3。** 用户可以：
+- 批量修改：如「所有话术把 FundaAI 改成 Funda.ai」
+- 单独修改：如「#3 的话术改成 xxx」
+- 删除候选人：如「#5 不发了」
+- 确认发送：如「OK 发吧」
+
+修改后重新输出受影响的行，再次等待确认。
 
 ---
 
-## Phase 3: 发送 Connect（用户确认后执行）
+## Phase 3: 发送 Connect（用户确认话术后执行）
 
-### 3.1 生成个性化消息
+### 3.1 发送前确认
 
-- **有自定义**：用户提供的内容 + Claude 微调
-- **无自定义**：通用模板
-  ```
-  Hi {firstName}, I came across your profile and was impressed by your experience in {domain} at {company}. I'd love to connect and exchange insights. Looking forward to staying in touch!
-  ```
-- 消息 ≤ 300 字符
+进入 Phase 3 的前提：
+- 用户已在 Phase 2.7 中 review 并确认了所有话术
+- Excel K 列中的话术即为最终发送内容
+- 如用户修改过话术，Excel 已同步更新
 
 ### 3.2 逐个发送（间隔 6-10s）
 
-**发送脚本**（引用 `lib/voyager.js` 中的 `sendConnectScript`）：
+使用 `lib/voyager.js` 中的 `sendConnectScript(profileUrn, note)` 生成发送脚本。
 
-```bash
-opencli browser linkedin eval "
-(async () => {
-  const csrf = document.cookie.match(/JSESSIONID=\\\"?([^;\\\"]+)/)?.[1] || '';
-  const profileUrn = 'URN_HERE';
-  const note = 'MESSAGE_HERE';
-  const resp = await fetch('https://www.linkedin.com/voyager/api/voyagerRelationshipsDashMemberRelationships?action=verifyQuotaAndCreate', {
-    method: 'POST',
-    headers: { 'Accept': 'application/vnd.linkedin.normalized+json+2.1', 'Content-Type': 'application/json', 'x-restli-protocol-version': '2.0.0', 'csrf-token': csrf },
-    credentials: 'include',
-    body: JSON.stringify({ inviteeProfileUrn: profileUrn, customMessage: note }),
-  });
-  const body = await resp.text();
-  return JSON.stringify({status: resp.status, body: body.slice(0, 300)});
-})()
-"
-```
+调用方式：`opencli browser linkedin eval "<sendConnectScript 输出的脚本>"`
 
-**结果判断**：
+- `profileUrn` — 候选人的 URN（如 `urn:li:fsd_profile:ACoAA...`）
+- `note` — K 列中用户确认过的话术内容
+
+**结果判断**（使用 `parseConnectResult(result)` 解析）：
 - 200 + `invitationUrn` → 成功
 - 400 + `CANT_RESEND_YET` → 跳过
 - 401/403/429 → **立即停止**
@@ -422,6 +395,7 @@ opencli browser linkedin eval "
 ## 模块引用
 
 - **配置文件**：`lib/config.js` — 公司ID映射、搜索策略、错误码定义
+- **话术模板**：`lib/connect-templates.json` — 发送人信息、话术类型模板、个性化规则、报酬区间
 - **API 封装**：`lib/voyager.js` — 搜索、Profile、Connect 脚本模板
 - **安装脚本**：`scripts/install-opencli.sh` — opencli 一键安装
 - **更新检查**：`scripts/check-update.sh` — opencli 版本检查

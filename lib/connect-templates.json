@@ -1,0 +1,52 @@
+{
+  "sender": {
+    "name": "Yujia",
+    "title": "Co-founder",
+    "company": "FundaAI",
+    "company_description": "a research platform based in Singapore, helping global institutional investors connect with industry professionals"
+  },
+  "templates": {
+    "type1_friendly": {
+      "label": "友好建联",
+      "description": "先加好友，连接后再说明目的。适合高价值/敏感候选人，转化率高但周期长",
+      "connect_message": "Hi {firstName}, I'm {senderName}, {senderTitle} of {company} — we connect global investors with top tech professionals. {highlight} — would love to connect!",
+      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic}.\n\nWould love to have a 60-min conversation with you — we offer a paid honorarium for your time ({rateRange}).\n\nFeel free to share your preferred email and I'll send over the project details!",
+      "min_chars": 200,
+      "max_chars": 300,
+      "tone": "professional yet casual, no hard sell"
+    },
+    "type2_direct": {
+      "label": "直接专家访谈",
+      "description": "Connect信息中直接提到付费研究咨询项目。效率高，适合大批量触达",
+      "connect_message": "Hi {firstName}, I'm {senderName}, {senderTitle} of {company}. I'm reaching out regarding a paid research consultation on {topic}. {highlight} Would love to connect.",
+      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic}.\n\nWould love to have a 60-min conversation with you. We offer a paid honorarium for your time ({rateRange}).\n\nFeel free to share your preferred email and I'll send over the project details!",
+      "min_chars": 200,
+      "max_chars": 300,
+      "tone": "direct, mention paid consultation upfront"
+    }
+  },
+  "personalization_rules": {
+    "highlight_sources": [
+      "candidate's most relevant position title + company",
+      "specific technology/domain expertise matching the topic",
+      "years of experience in the target area"
+    ],
+    "highlight_examples": [
+      "Your ML Infra work at Google is highly relevant —",
+      "Your 5+ years leading perception at Waymo is exactly the expertise we're looking for —",
+      "Your experience scaling LLM infrastructure at Anthropic caught my eye —"
+    ],
+    "avoid": [
+      "generic phrases like 'your impressive background'",
+      "overly long descriptions of the company",
+      "'I'd love to pick your brain' (too casual)",
+      "multiple questions in one message"
+    ]
+  },
+  "rate_range": "200-700 USD/h",
+  "consultation_format": "60-min, 1-on-1, phone or video call",
+  "language_rules": {
+    "default": "en",
+    "use_chinese_when": "candidate name/headline is primarily in Chinese characters"
+  }
+}
