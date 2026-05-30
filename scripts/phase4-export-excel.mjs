@@ -1,0 +1,268 @@
+#!/usr/bin/env node
+/**
+ * Phase 4: Scored results → Excel (.xlsx) + connect messages
+ *
+ * Usage:
+ *   node phase4-export-excel.mjs \
+ *     --input  ../data/exports/phase3-YYYYMMDD.json \
+ *     --criteria ../data/criteria/YYYYMMDD.json \
+ *     [--output ../data/exports/linkedin_YYYYMMDD.xlsx] \
+ *     [--sender "Zadie"] [--rate "$300-800/hr"] [--company "Funda.ai"]
+ *     [--topic "advanced semiconductor process and technology"]
+ *
+ * ⚠️  xlsx 写文件必须用 XLSX.write({type:'buffer'}) + fs.writeFileSync
+ *     不能用 XLSX.writeFile — ESM 环境下 _fs 未定义会爆 write_dl 错误
+ */
+
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const SKILL_ROOT = resolve(__dir, '..');
+
+// xlsx: 用 buffer 方式写，避免 ESM 下 writeFile/_fs 问题
+// 按优先级查找 xlsx：skill 本地 → tmp 安装包 → npm 全局
+function findXlsxPath() {
+  const candidates = [
+    resolve(SKILL_ROOT, 'node_modules/xlsx/xlsx.mjs'),
+    '/private/tmp/xlsx-pkg/node_modules/xlsx/xlsx.mjs',
+    '/tmp/xlsx-pkg/node_modules/xlsx/xlsx.mjs',
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  console.error('[error] xlsx 未找到，请运行: mkdir -p /tmp/xlsx-pkg && cd /tmp/xlsx-pkg && npm install xlsx');
+  process.exit(1);
+}
+const XLSX = await import(findXlsxPath());
+
+// ── CLI args ──────────────────────────────────────────────────────────────────
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const opts = {
+    input: null, criteria: null, output: null,
+    sender: 'Zadie', rate: '$300-800/hr', company: 'Funda.ai',
+    topic: 'advanced semiconductor process and technology',
+  };
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--input')    opts.input    = resolve(args[++i]);
+    if (args[i] === '--criteria') opts.criteria = resolve(args[++i]);
+    if (args[i] === '--output')   opts.output   = resolve(args[++i]);
+    if (args[i] === '--sender')   opts.sender   = args[++i];
+    if (args[i] === '--rate')     opts.rate     = args[++i];
+    if (args[i] === '--company')  opts.company  = args[++i];
+    if (args[i] === '--topic')    opts.topic    = args[++i];
+  }
+  if (!opts.input) {
+    console.error('Usage: node phase4-export-excel.mjs --input <phase3.json> --criteria <criteria.json>');
+    process.exit(1);
+  }
+  if (!opts.output) {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const hhmm = new Date().toTimeString().slice(0, 5).replace(':', '');
+    opts.output = resolve(SKILL_ROOT, `data/exports/linkedin_${date}_${hhmm}.xlsx`);
+  }
+  return opts;
+}
+
+// ── Connect message ───────────────────────────────────────────────────────────
+function buildConnectMsg(c, opts) {
+  const firstName = c.first_name || c.name?.split(' ')[0] || c.name || 'there';
+  const hl = c.highlight_for_outreach || "Your expertise is exactly what we're looking for —";
+  const base = `Hi ${firstName}, I'm ${opts.sender} at ${opts.company} (research + expert network, Singapore). We're doing a paid (${opts.rate}) study on ${opts.topic}. ${hl} Can you share a personal email for the formal invite?`;
+  if (base.length <= 290) return base;
+  return `Hi ${firstName}, I'm ${opts.sender} at ${opts.company}. We're doing a paid (${opts.rate}) study on ${opts.topic}. Your background is exactly what we're looking for — can you share a personal email for the formal invite?`;
+}
+
+// ── Sheet 1: Passed candidates ────────────────────────────────────────────────
+function buildPassedRows(passed, opts, criteria) {
+  const TARGET_COS = (criteria?.hard_filters?.any_of_companies || ['tsmc', 'intel', '台积电', '英特尔'])
+    .map(c => c.toLowerCase());
+
+  function targetExp(positions) {
+    return (positions || [])
+      .filter(p => TARGET_COS.some(c => (p.company || '').toLowerCase().includes(c)))
+      .map(p => `${p.company} | ${p.title} | ${p.startYear || '?'}-${p.endYear || 'now'}`)
+      .join('\n') || '—';
+  }
+  function otherExp(positions) {
+    return (positions || [])
+      .filter(p => !TARGET_COS.some(c => (p.company || '').toLowerCase().includes(c)))
+      .slice(0, 3)
+      .map(p => `${p.company} | ${p.title} | ${p.startYear || '?'}-${p.endYear || 'now'}`)
+      .join('\n') || '—';
+  }
+  function edu(educations) {
+    return (educations || []).map(e => [e.school, e.degree, e.field].filter(Boolean).join(' · ')).join('\n') || '—';
+  }
+  function dimScores(sb) {
+    const labels = { company_match: '公司', topic_depth: '课题', seniority_focus: '资历', bonus: '加分' };
+    return (sb || []).map(d => `${labels[d.key] || d.key}:${d.score}`).join(' / ');
+  }
+  function tierLabel(t) { return t === 1 ? '⭐⭐⭐' : t === 2 ? '⭐⭐' : t === 3 ? '⭐' : '-'; }
+
+  const header = [
+    '序号', 'Tier', '总分', '分项评分', '姓名', '当前职位', '当前公司',
+    '目标公司经历', '其他经历', '学历', '地点', '评分理由',
+    'matched_signals', 'missed_signals', 'highlight_for_outreach',
+    'Connect 话术', 'Profile URL', 'Vanity', 'URN',
+    '搜索命中', '评分方式', 'Connect状态',
+  ];
+
+  const rows = [header];
+  passed.forEach((c, i) => {
+    const positions = c.positions || (c.experience_history
+      ? c.experience_history.split('; ').map(s => { const [company, title, yr] = s.split(' | '); return { company, title }; })
+      : []);
+    rows.push([
+      i + 1,
+      `${c.tier || '?'} ${tierLabel(c.tier)}`,
+      c.score ?? '',
+      dimScores(c.scores_breakdown),
+      c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      c.current_title || positions[0]?.title || '',
+      c.current_company || positions[0]?.company || '',
+      targetExp(positions),
+      otherExp(positions),
+      edu(c.educations || []),
+      c.location || '',
+      c.reasoning || '',
+      (c.matched_signals || []).join('; '),
+      (c.missed_signals || []).join('; '),
+      c.highlight_for_outreach || '',
+      buildConnectMsg(c, opts),
+      c.profile_url || (c.vanity ? `https://www.linkedin.com/in/${c.vanity}` : ''),
+      c.vanity || '',
+      c.urn || '',
+      (c.hits || []).map(h => `${h.kw}@${h.strategy || ''}`).join(' + '),
+      c.scored_by || 'rule',
+      c.connect_status || '待确认',
+    ]);
+  });
+  return rows;
+}
+
+// ── Sheet 2: Failed candidates ────────────────────────────────────────────────
+function buildFailedRows(failed) {
+  const header = ['姓名', 'Headline', 'Vanity', '淘汰原因'];
+  return [header, ...failed.map(c => [c.name || '', c.headline || '', c.vanity || '', c.reason || ''])];
+}
+
+// ── Style helpers ─────────────────────────────────────────────────────────────
+function applyColumnWidths(ws, widths) {
+  ws['!cols'] = widths.map(w => ({ wch: w }));
+}
+function freezeTopRow(ws) {
+  ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function main() {
+  const opts = parseArgs();
+
+  const phase3 = JSON.parse(readFileSync(opts.input, 'utf8'));
+  const passed = phase3.passed || [];
+  const failed = phase3.failed || [];
+  const summary = phase3.summary || {};
+
+  const criteria = opts.criteria && existsSync(opts.criteria)
+    ? JSON.parse(readFileSync(opts.criteria, 'utf8'))
+    : {};
+
+  console.log(`passed: ${passed.length}  failed: ${failed.length}`);
+
+  // Sheet 1
+  const passedRows = buildPassedRows(passed, opts, criteria);
+  const ws1 = XLSX.utils.aoa_to_sheet(passedRows);
+  applyColumnWidths(ws1, [5, 8, 6, 28, 18, 22, 16, 30, 30, 25, 14, 35, 30, 30, 40, 60, 45, 25, 40, 30, 8, 8]);
+  freezeTopRow(ws1);
+
+  // Sheet 2
+  const failedRows = buildFailedRows(failed);
+  const ws2 = XLSX.utils.aoa_to_sheet(failedRows);
+  applyColumnWidths(ws2, [18, 40, 25, 30]);
+
+  // Sheet 3: 统计
+  const t1 = passed.filter(c => c.tier === 1).length;
+  const t2 = passed.filter(c => c.tier === 2).length;
+  const t3 = passed.filter(c => c.tier === 3).length;
+  const statsRows = [
+    ['指标', '数值'],
+    ['总召回', summary.total || '—'],
+    ['预筛丢弃', summary.pre_dropped || '—'],
+    ['实际拉取 Profile', summary.profile_fetched || '—'],
+    ['L2 通过', passed.length],
+    ['L2 失败', failed.length],
+    ['Tier 1 (⭐⭐⭐)', t1],
+    ['Tier 2 (⭐⭐)', t2],
+    ['Tier 3 (⭐)', t3],
+    ['生成时间', new Date().toLocaleString('zh-CN')],
+  ];
+  const ws3 = XLSX.utils.aoa_to_sheet(statsRows);
+  applyColumnWidths(ws3, [22, 14]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, '候选人');
+  XLSX.utils.book_append_sheet(wb, ws2, '淘汰名单');
+  XLSX.utils.book_append_sheet(wb, ws3, '统计');
+
+  // ⚠️ 必须用 buffer 写，不能用 XLSX.writeFile（ESM 下 _fs=undefined 会 crash）
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  writeFileSync(opts.output, Buffer.from(buf));
+
+  // ── Generate dashboard HTML ───────────────────────────────────────────────
+  const htmlPath = opts.output.replace(/\.xlsx$/, '-review.html');
+  const tplPath = resolve(SKILL_ROOT, 'templates/review-dashboard.html');
+  if (!existsSync(tplPath)) {
+    console.error(`[error] Dashboard 模板不存在: ${tplPath}`);
+    process.exit(1);
+  }
+  {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const hhmm = new Date().toTimeString().slice(0, 5).replace(':', '');
+    const batchId = `search_${date}_${hhmm}`;
+    const batchMeta = {
+      batch_id: batchId,
+      topic: opts.topic,
+      companies: criteria?.hard_filters?.any_of_companies || [],
+      target_companies: criteria?.hard_filters?.any_of_companies || [],
+    };
+
+    // Enrich candidates with positions parsed from experience_history
+    const enriched = passed.map(c => {
+      let positions = c.positions || [];
+      if (!positions.length && c.experience_history) {
+        positions = c.experience_history.split('; ').map(s => {
+          const parts = s.split(' | ');
+          const [company, title, yr] = parts;
+          const [sy, ey] = (yr || '').split('-');
+          return { company, title, startYear: parseInt(sy)||null, endYear: ey==='now'?null:parseInt(ey)||null };
+        });
+      }
+      return {
+        ...c,
+        positions,
+        connect_message: buildConnectMsg(c, opts),
+      };
+    });
+
+    let html = readFileSync(tplPath, 'utf8');
+    html = html
+      .replace('__BATCH_ID__', batchId)
+      .replace('__TOPIC__', opts.topic)
+      .replace('__COMPANIES__', (batchMeta.companies || []).join(' / '))
+      .replace('__TOTAL__', enriched.length)
+      .replace('__CANDIDATES_JSON__', JSON.stringify(enriched))
+      .replace('__BATCH_META_JSON__', JSON.stringify(batchMeta));
+    writeFileSync(htmlPath, html);
+    console.log(`✓ Dashboard  : ${htmlPath}`);
+    execSync(`open "${htmlPath}"`);
+  }
+
+  console.log(`✓ Excel      : ${opts.output}`);
+  console.log(`  候选人 ${passed.length} 行 (T1:${t1} T2:${t2} T3:${t3}) | 淘汰 ${failed.length} 行`);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

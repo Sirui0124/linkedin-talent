@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LinkedIn Review · __BATCH_ID__</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:14px}
+
+/* ── TOP BAR ── */
+#topbar{background:#1a1a2e;color:#eee;padding:8px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0;font-size:12px}
+#topbar .batch{font-weight:600;font-size:13px;color:#fff}
+#topbar .meta{color:#aaa}
+#topbar-actions{margin-left:auto;display:flex;gap:8px}
+.btn-sm{padding:4px 10px;border-radius:4px;border:none;cursor:pointer;font-size:12px;font-weight:500}
+.btn-outline{background:transparent;color:#ccc;border:1px solid #555}
+.btn-outline:hover{background:#333;color:#fff}
+
+/* ── MAIN ── */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ── LEFT SIDEBAR ── */
+#sidebar{width:280px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;flex-shrink:0}
+#sidebar-header{padding:10px;border-bottom:1px solid #eee}
+#search-box{width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none}
+#search-box:focus{border-color:#1976d2}
+#tier-filter{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chip{padding:3px 10px;border-radius:12px;border:1px solid #ddd;font-size:11px;cursor:pointer;background:#fff;color:#555;transition:all .15s}
+.chip:hover{background:#f0f4ff}
+.chip.active{background:#1976d2;color:#fff;border-color:#1976d2}
+#candidate-list{overflow-y:auto;flex:1}
+.cand-item{display:flex;align-items:stretch;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;position:relative}
+.cand-item:hover{background:#fafafa}
+.cand-item.selected{background:#e8f0fe}
+.tier-bar{width:4px;flex-shrink:0}
+.tier-bar.t1{background:#4CAF50}
+.tier-bar.t2{background:#2196F3}
+.tier-bar.t3{background:#9E9E9E}
+.cand-info{padding:8px 10px;flex:1;min-width:0}
+.cand-name{font-size:13px;font-weight:500;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cand-sub{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.status-dot{width:8px;height:8px;border-radius:50%;align-self:center;margin-right:8px;flex-shrink:0;background:#e0e0e0}
+.status-dot.connect{background:#4CAF50}
+.status-dot.reject{background:#f44336}
+
+/* ── RIGHT DETAIL ── */
+#detail{flex:1;overflow-y:auto;padding:20px;background:#f9f9f9}
+#detail.empty{display:flex;align-items:center;justify-content:center;color:#bbb;font-size:15px}
+
+.detail-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.detail-name{font-size:18px;font-weight:600;color:#111}
+.detail-subtitle{font-size:13px;color:#666;margin-top:3px}
+.li-link{margin-left:auto;font-size:12px;color:#1976d2;text-decoration:none;white-space:nowrap;padding:4px 10px;border:1px solid #1976d2;border-radius:4px}
+.li-link:hover{background:#e8f0fe}
+
+.section{background:#fff;border-radius:8px;border:1px solid #e8e8e8;padding:14px;margin-bottom:12px}
+.section-title{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+
+/* Connect message editable */
+#connect-msg{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px;font-size:13px;line-height:1.5;resize:vertical;min-height:80px;font-family:inherit;outline:none}
+#connect-msg:focus{border-color:#1976d2}
+.char-count{font-size:11px;color:#aaa;text-align:right;margin-top:4px}
+.char-count.warn{color:#e67e22}
+.char-count.over{color:#e53935}
+
+.action-row{display:flex;gap:8px;margin-top:10px}
+.btn-connect{background:#4CAF50;color:#fff;border:none;padding:7px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-connect:hover{background:#388E3C}
+.btn-connect.active{background:#388E3C;box-shadow:0 0 0 2px #a5d6a7}
+.btn-reject{background:#fff;color:#e53935;border:1px solid #e53935;padding:7px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-reject:hover{background:#fdecea}
+.btn-reject.active{background:#fdecea;box-shadow:0 0 0 2px #ffcdd2}
+
+/* Experience */
+.exp-item{margin-bottom:8px}
+.exp-company{font-size:13px;font-weight:500;color:#222}
+.exp-title{font-size:12px;color:#555}
+.exp-period{font-size:11px;color:#999;margin-top:1px}
+.exp-target{border-left:3px solid #1976d2;padding-left:8px}
+
+/* Skills */
+.skill-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.skill-tag{background:#e8f0fe;color:#1a237e;border-radius:3px;padding:2px 8px;font-size:11px}
+
+/* Score breakdown */
+.score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.score-label{font-size:12px;color:#555}
+.score-bar-wrap{flex:1;height:6px;background:#eee;border-radius:3px;margin:0 10px}
+.score-bar-fill{height:6px;border-radius:3px;transition:width .3s}
+.score-val{font-size:12px;font-weight:600;width:28px;text-align:right;color:#333}
+
+.reasoning-text{font-size:12px;color:#777;line-height:1.5;margin-top:4px}
+.signals{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.signal-tag{font-size:11px;padding:2px 7px;border-radius:3px}
+.signal-match{background:#e8f5e9;color:#2e7d32}
+.signal-miss{background:#fce4ec;color:#c62828}
+
+/* ── BOTTOM BAR ── */
+#bottombar{background:#fff;border-top:1px solid #ddd;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+#status-counts{font-size:13px;color:#555}
+#status-counts span{font-weight:600}
+.count-connect{color:#4CAF50}
+.count-reject{color:#e53935}
+.count-skip{color:#9E9E9E}
+#bottombar-btns{margin-left:auto;display:flex;gap:8px}
+.btn-primary{background:#1976d2;color:#fff;border:none;padding:8px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-primary:hover{background:#1565c0}
+.btn-secondary{background:#fff;color:#333;border:1px solid #ccc;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:13px}
+.btn-secondary:hover{background:#f5f5f5}
+
+/* ── COPY TOAST ── */
+#toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:5px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="batch">__BATCH_ID__</span>
+  <span class="meta">__TOPIC__</span>
+  <span class="meta">__COMPANIES__</span>
+  <span class="meta">共 <strong>__TOTAL__</strong> 人</span>
+  <div id="topbar-actions">
+    <button class="btn-sm btn-outline" onclick="markAll('connect')">全部建联</button>
+    <button class="btn-sm btn-outline" onclick="clearAll()">清除标记</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <input id="search-box" type="text" placeholder="搜索姓名、公司、职位…" oninput="filterList()">
+      <div id="tier-filter">
+        <span class="chip active" data-tier="all" onclick="setTierFilter('all',this)">全部</span>
+        <span class="chip" data-tier="1" onclick="setTierFilter('1',this)">T1 <span id="c1">0</span></span>
+        <span class="chip" data-tier="2" onclick="setTierFilter('2',this)">T2 <span id="c2">0</span></span>
+        <span class="chip" data-tier="3" onclick="setTierFilter('3',this)">T3 <span id="c3">0</span></span>
+      </div>
+    </div>
+    <div id="candidate-list"></div>
+  </div>
+
+  <div id="detail" class="empty">← 从左侧选择候选人</div>
+</div>
+
+<div id="bottombar">
+  <div id="status-counts">
+    建联 <span class="count-connect" id="cnt-connect">0</span> ·
+    不准确 <span class="count-reject" id="cnt-reject">0</span> ·
+    未评价 <span class="count-skip" id="cnt-skip">0</span>
+  </div>
+  <div id="bottombar-btns">
+    <button class="btn-secondary" onclick="exportDecisions()">导出决策 JSON</button>
+    <button class="btn-primary" onclick="copyConnectList()">复制建联名单</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── DATA (injected by phase4-export-excel.mjs) ────────────────────────────────
+const CANDIDATES = __CANDIDATES_JSON__;
+const BATCH_META = __BATCH_META_JSON__;
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const decisions = {}; // vanity → {action:'connect'|'reject'|'skip', note, edited}
+let currentVanity = null;
+let tierFilter = 'all';
+
+// init decisions
+CANDIDATES.forEach(c => {
+  decisions[c.vanity] = { action: 'skip', note: c.connect_message || '', edited: false };
+});
+
+// ── RENDER SIDEBAR ────────────────────────────────────────────────────────────
+function renderList() {
+  const q = document.getElementById('search-box').value.toLowerCase();
+  const list = document.getElementById('candidate-list');
+  let filtered = CANDIDATES.filter(c => {
+    if (tierFilter !== 'all' && String(c.tier) !== tierFilter) return false;
+    if (q && !`${c.name} ${c.current_company} ${c.current_title} ${c.headline}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  list.innerHTML = filtered.map(c => {
+    const d = decisions[c.vanity];
+    const dotClass = d.action === 'connect' ? 'connect' : d.action === 'reject' ? 'reject' : '';
+    const tierClass = c.tier === 1 ? 't1' : c.tier === 2 ? 't2' : 't3';
+    const selClass = c.vanity === currentVanity ? ' selected' : '';
+    const totalYrs = calcTotalYrs(c.positions || []);
+    return `<div class="cand-item${selClass}" onclick="selectCandidate('${c.vanity}')">
+      <div class="tier-bar ${tierClass}"></div>
+      <div class="cand-info">
+        <div class="cand-name">${esc(c.name)}</div>
+        <div class="cand-sub">${esc(c.current_company || '')}${totalYrs ? ' · ' + totalYrs + 'yr' : ''}</div>
+      </div>
+      <div class="status-dot ${dotClass}"></div>
+    </div>`;
+  }).join('');
+
+  // tier counts
+  const c = CANDIDATES;
+  document.getElementById('c1').textContent = c.filter(x=>x.tier===1).length;
+  document.getElementById('c2').textContent = c.filter(x=>x.tier===2).length;
+  document.getElementById('c3').textContent = c.filter(x=>x.tier===3).length;
+  updateCounts();
+}
+
+function calcTotalYrs(positions) {
+  if (!positions.length) return 0;
+  const starts = positions.map(p => p.startYear).filter(Boolean);
+  if (!starts.length) return 0;
+  return new Date().getFullYear() - Math.min(...starts);
+}
+
+// ── SELECT CANDIDATE ──────────────────────────────────────────────────────────
+function selectCandidate(vanity) {
+  currentVanity = vanity;
+  const c = CANDIDATES.find(x => x.vanity === vanity);
+  if (!c) return;
+  const d = decisions[vanity];
+
+  const profileUrl = c.profile_url || `https://www.linkedin.com/in/${vanity}`;
+  const totalYrs = calcTotalYrs(c.positions || []);
+  const pos = c.positions || [];
+  const targetCos = (BATCH_META.target_companies || []).map(x => x.toLowerCase());
+  const targetPos = pos.filter(p => targetCos.some(tc => (p.company||'').toLowerCase().includes(tc)));
+  const otherPos = pos.filter(p => !targetCos.some(tc => (p.company||'').toLowerCase().includes(tc)));
+
+  // Score bars
+  const dims = c.scores_breakdown || [];
+  const dimColors = { company_match:'#4CAF50', topic_depth:'#2196F3', seniority_focus:'#FF9800', bonus:'#9C27B0' };
+  const dimLabels = { company_match:'公司匹配', topic_depth:'课题深度', seniority_focus:'资历聚焦', bonus:'加分项' };
+  const scoreHtml = dims.map(d => {
+    const color = dimColors[d.key] || '#999';
+    const label = dimLabels[d.key] || d.key;
+    return `<div class="score-row">
+      <span class="score-label">${label}</span>
+      <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${d.score}%;background:${color}"></div></div>
+      <span class="score-val">${d.score}</span>
+    </div>`;
+  }).join('');
+
+  // Experience
+  function expHtml(positions, isTarget) {
+    return positions.slice(0, isTarget ? 5 : 3).map(p => {
+      const yr = `${p.startYear||'?'} - ${p.endYear||'至今'}`;
+      const yrs = (p.endYear||new Date().getFullYear()) - (p.startYear||new Date().getFullYear());
+      return `<div class="exp-item ${isTarget?'exp-target':''}">
+        <div class="exp-company">${esc(p.company||'')}</div>
+        <div class="exp-title">${esc(p.title||'')}</div>
+        <div class="exp-period">${yr}${yrs>0?' ('+yrs+'yr)':''}</div>
+      </div>`;
+    }).join('') || '<span style="color:#bbb;font-size:12px">—</span>';
+  }
+
+  const skills = (c.skills||[]).map(s => `<span class="skill-tag">${esc(s)}</span>`).join('');
+  const matchTags = (c.matched_signals||[]).map(s=>`<span class="signal-tag signal-match">${esc(s)}</span>`).join('');
+  const missTags = (c.missed_signals||[]).map(s=>`<span class="signal-tag signal-miss">${esc(s)}</span>`).join('');
+
+  const connectActive = d.action === 'connect' ? ' active' : '';
+  const rejectActive  = d.action === 'reject'  ? ' active' : '';
+
+  document.getElementById('detail').className = '';
+  document.getElementById('detail').innerHTML = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-name">${esc(c.name)} · ${c.score != null ? c.score+'分' : ''}</div>
+        <div class="detail-subtitle">${esc(c.current_title||'')} @ ${esc(c.current_company||'')}${totalYrs ? ' · '+totalYrs+'yr' : ''}</div>
+      </div>
+      <a href="${profileUrl}" target="_blank" class="li-link">LinkedIn ↗</a>
+    </div>
+
+    <div class="section">
+      <div class="section-title">建联话术 (可直接编辑)</div>
+      <textarea id="connect-msg" onkeyup="onMsgEdit()">${esc(d.note)}</textarea>
+      <div class="char-count" id="char-count">${d.note.length} / 290 字符</div>
+      <div class="action-row">
+        <button class="btn-connect${connectActive}" onclick="setAction('connect')">建联</button>
+        <button class="btn-reject${rejectActive}" onclick="setAction('reject')">不准确</button>
+      </div>
+    </div>
+
+    ${dims.length ? `<div class="section">
+      <div class="section-title">评分明细 · 总分 ${c.score??'—'}</div>
+      ${scoreHtml}
+      ${c.reasoning ? `<div class="reasoning-text">${esc(c.reasoning)}</div>` : ''}
+      ${matchTags||missTags ? `<div class="signals">${matchTags}${missTags}</div>` : ''}
+    </div>` : ''}
+
+    ${targetPos.length ? `<div class="section">
+      <div class="section-title">目标公司经历</div>
+      ${expHtml(targetPos, true)}
+    </div>` : ''}
+
+    ${otherPos.length ? `<div class="section">
+      <div class="section-title">其他经历</div>
+      ${expHtml(otherPos, false)}
+    </div>` : ''}
+
+    ${skills ? `<div class="section">
+      <div class="section-title">技能</div>
+      <div class="skill-tags">${skills}</div>
+    </div>` : ''}
+  `;
+
+  renderList();
+  updateCharCount();
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function setAction(action) {
+  if (!currentVanity) return;
+  const d = decisions[currentVanity];
+  d.action = d.action === action ? 'skip' : action; // toggle
+  // sync note from textarea
+  const ta = document.getElementById('connect-msg');
+  if (ta) d.note = ta.value;
+  selectCandidate(currentVanity); // re-render
+}
+
+function onMsgEdit() {
+  if (!currentVanity) return;
+  const ta = document.getElementById('connect-msg');
+  decisions[currentVanity].note = ta.value;
+  decisions[currentVanity].edited = true;
+  updateCharCount();
+}
+
+function updateCharCount() {
+  const ta = document.getElementById('connect-msg');
+  const cc = document.getElementById('char-count');
+  if (!ta || !cc) return;
+  const n = ta.value.length;
+  cc.textContent = `${n} / 290 字符`;
+  cc.className = 'char-count' + (n > 290 ? ' over' : n > 260 ? ' warn' : '');
+}
+
+function filterList() { renderList(); }
+function setTierFilter(tier, el) {
+  tierFilter = tier;
+  document.querySelectorAll('#tier-filter .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+function updateCounts() {
+  const vals = Object.values(decisions);
+  document.getElementById('cnt-connect').textContent = vals.filter(d=>d.action==='connect').length;
+  document.getElementById('cnt-reject').textContent  = vals.filter(d=>d.action==='reject').length;
+  document.getElementById('cnt-skip').textContent    = vals.filter(d=>d.action==='skip').length;
+}
+
+function markAll(action) {
+  CANDIDATES.forEach(c => { decisions[c.vanity].action = action; });
+  if (currentVanity) selectCandidate(currentVanity);
+  else renderList();
+}
+function clearAll() {
+  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'skip'; });
+  if (currentVanity) selectCandidate(currentVanity);
+  else renderList();
+}
+
+// ── EXPORT / COPY ─────────────────────────────────────────────────────────────
+function copyConnectList() {
+  const list = CANDIDATES
+    .filter(c => decisions[c.vanity]?.action === 'connect')
+    .map(c => c.vanity)
+    .join('\n');
+  if (!list) { showToast('没有标记建联的人选'); return; }
+  navigator.clipboard.writeText(list).then(() => showToast(`已复制 ${list.split('\n').length} 人的 vanity 列表`));
+}
+
+function exportDecisions() {
+  const data = {
+    batch_id: BATCH_META.batch_id,
+    version: 2,
+    exported_at: new Date().toISOString(),
+    decisions: CANDIDATES.map(c => {
+      const d = decisions[c.vanity];
+      const entry = { vanity: c.vanity, action: d.action };
+      if (d.action === 'connect') { entry.note = d.note; entry.edited = d.edited; }
+      return entry;
+    })
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `decisions_${BATCH_META.batch_id}.json`;
+  a.click();
+  showToast('决策 JSON 已下载');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderList();
+if (CANDIDATES.length > 0) selectCandidate(CANDIDATES[0].vanity);
+</script>
+</body>
+</html>

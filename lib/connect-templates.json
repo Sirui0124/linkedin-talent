@@ -10,11 +10,17 @@
     "type1_friendly": {
       "label": "友好建联",
       "description": "先加好友，连接后再说明目的。适合高价值/敏感候选人，转化率高但周期长",
-      "connect_message": "Hi {firstName}, I'm {senderName}, {senderTitle} of {company} — we connect global investors with top tech professionals. {highlight} — would love to connect!",
+      "connect_message": "Hi {firstName}, {highlight} Would love to connect!",
+      "connect_message_examples": [
+        "Hi Nital, your 25+ years in AI applications for smart manufacturing at Intel, plus being IEEE TSM Editor-in-Chief, is a truly remarkable background. Would love to connect and learn from your experience!",
+        "Hi Einav, your background in AI-driven manufacturing product leadership at Intel is really impressive. The combination of technical depth and PM expertise in semiconductor is fascinating. Would love to connect!",
+        "Hi Ryan, I came across your profile and was impressed by your applied science work at Amazon AGI. Would love to connect and share perspectives on AI/ML!"
+      ],
+      "highlight_rules_type1": "与 type2 不同：type1 的 highlight 可以更具体、更有温度，要让对方觉得你真的仔细看过他的 profile。写法：1) 提具体年限/头衔/公司/成就（如 '25+ years in ... at Intel'），2) 说为什么印象深刻（'fascinating'/'remarkable'/'impressive'），3) 结尾用 'Would love to connect!' 或 'Would love to connect and learn from your experience!'。禁止：不提付费/课题/公司目的。",
       "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic_obfuscated}.\n\nWould love to have a 60-min conversation with you — we offer a paid honorarium for your time ({rate_range}).\n\nFeel free to share your preferred email and I'll send over the project details!",
-      "min_chars": 200,
+      "min_chars": 80,
       "max_chars": 300,
-      "tone": "professional yet casual, no hard sell"
+      "tone": "genuinely interested, personal, no business pitch, no research mention"
     },
     "type2_direct": {
       "label": "明确付费咨询",
