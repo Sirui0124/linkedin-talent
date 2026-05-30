@@ -1,0 +1,57 @@
+{
+  "_comment": "单批次 Excel 列定义，落地路径 ~/Downloads/linkedin_search_YYYYMMDD_HHMMSS.xlsx",
+  "filename_pattern": "~/Downloads/linkedin_search_{batch_id}.xlsx",
+  "sheets": {
+    "passed": {
+      "name": "筛选通过",
+      "sort_by": "score DESC",
+      "columns": [
+        {"col": "A", "header": "tier", "field": "tier", "note": "1 / 2 / 3"},
+        {"col": "B", "header": "推荐度", "field": "rating", "note": "⭐⭐⭐ / ⭐⭐ / ⭐"},
+        {"col": "C", "header": "score", "field": "score", "note": "LLM 总分 0-100"},
+        {"col": "D", "header": "维度评分", "field": "scores_breakdown_str", "note": "JSON 数组渲染为 'A:90 / B:75 / ...'"},
+        {"col": "E", "header": "姓名", "field": "first_name + last_name"},
+        {"col": "F", "header": "Headline", "field": "headline"},
+        {"col": "G", "header": "当前公司", "field": "current_company"},
+        {"col": "H", "header": "当前职位", "field": "current_title"},
+        {"col": "I", "header": "目标经历", "field": "target_experience", "format": "公司 | 职位 | 起止年（多段换行）"},
+        {"col": "J", "header": "其他经历", "field": "other_experience", "format": "同上"},
+        {"col": "K", "header": "学历", "field": "education", "format": "学校 + 学位 + 专业"},
+        {"col": "L", "header": "连接度", "field": "degree", "note": "1度/2度/3度"},
+        {"col": "M", "header": "LinkedIn URL", "field": "profile_url"},
+        {"col": "N", "header": "评分理由", "field": "reasoning", "note": "1-2 句中文"},
+        {"col": "O", "header": "命中信号", "field": "matched_signals", "format": "join('、')"},
+        {"col": "P", "header": "缺失信号", "field": "missed_signals", "format": "join('、')"},
+        {"col": "Q", "header": "建联话术", "field": "connect_message", "note": "Phase 1.5 选定模板渲染，type1/2 ≤ 290 字符"},
+        {"col": "R", "header": "命中信息", "field": "hits_summary", "example": "BEOL@TSMC current + kw:Ruthenium"},
+        {"col": "S", "header": "Connect 状态", "field": "connect_status", "note": "待确认 / 已发送 / CANT_RESEND / 失败"},
+        {"col": "T", "header": "备注", "field": "filter_reason"}
+      ],
+      "wrap_text_columns": ["I", "J", "M", "N", "Q"]
+    },
+    "failed": {
+      "name": "未通过",
+      "columns": [
+        {"col": "A", "header": "姓名", "field": "first_name + last_name"},
+        {"col": "B", "header": "Headline", "field": "headline"},
+        {"col": "C", "header": "Location", "field": "location"},
+        {"col": "D", "header": "连接度", "field": "degree"},
+        {"col": "E", "header": "LinkedIn URL", "field": "profile_url"},
+        {"col": "F", "header": "排除原因", "field": "filter_reason"}
+      ]
+    }
+  },
+  "styles": {
+    "header_row": {"bg": "4472C4", "fg": "FFFFFF", "bold": true},
+    "tier1_row": {"bg": "C6EFCE"},
+    "tier2_row": {"bg": "DDEBF7"},
+    "tier3_row": {"bg": null, "_note": "无特殊背景"},
+    "failed_row": {"bg": "F2F2F2"},
+    "freeze_panes": "A2"
+  },
+  "rules": {
+    "experience_format": "公司名 | 职位 | 起始年-结束年；多段经历用换行分隔；禁止额外加工（箭头/括号/中文描述）",
+    "tier_to_rating": {"1": "⭐⭐⭐", "2": "⭐⭐", "3": "⭐"},
+    "connect_status_default": "待确认"
+  }
+}

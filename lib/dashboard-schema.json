@@ -1,0 +1,61 @@
+{
+  "_comment": "跨批次 master dashboard 列定义。落地路径 ~/.linkedin-talent/dashboard.xlsx。Sheet1=候选人库（按 vanity 跨批次去重），Sheet2=批次索引。",
+  "filename": "~/.linkedin-talent/dashboard.xlsx",
+  "sheets": {
+    "candidates": {
+      "name": "候选人库",
+      "dedupe_key": "profile_url",
+      "default_sort": "最近出现批次 DESC, tier ASC",
+      "columns": [
+        {"col": "A", "header": "姓名",            "filled_at": "phase3", "field": "first_name + last_name"},
+        {"col": "B", "header": "LinkedIn URL",   "filled_at": "phase3", "field": "profile_url"},
+        {"col": "C", "header": "tier",            "filled_at": "phase3", "merge_rule": "min(existing, current) — 取最高 tier"},
+        {"col": "D", "header": "推荐度",          "filled_at": "phase3", "field": "tierToStars(tier)"},
+        {"col": "E", "header": "当前公司 · 职位",  "filled_at": "phase3", "merge_rule": "用最新批次数据覆盖"},
+        {"col": "F", "header": "目标经历摘要",     "filled_at": "phase3", "field": "target_experience"},
+        {"col": "G", "header": "命中信息",        "filled_at": "phase3", "merge_rule": "merge_hits(existing, current) 去重"},
+        {"col": "H", "header": "首次出现批次",     "filled_at": "phase3", "merge_rule": "已存在则保留原值"},
+        {"col": "I", "header": "最近出现批次",     "filled_at": "phase3", "merge_rule": "每次更新"},
+        {"col": "J", "header": "出现次数",        "filled_at": "phase3", "merge_rule": "+1"},
+        {"col": "K", "header": "Connect 状态",   "filled_at": "phase3", "merge_rule": "本次实际触达过才更新；Phase 4 追加 已接受/已 follow-up"},
+        {"col": "L", "header": "邀请发出时间",     "filled_at": "phase3", "merge_rule": "首次成功发送时间，已存在不覆盖"},
+        {"col": "M", "header": "接受时间",        "filled_at": "phase4", "field": "(留空，Phase 4 监测 sentInvitations 后回填)"},
+        {"col": "N", "header": "Follow-up 时间",  "filled_at": "phase4", "field": "(留空，Phase 4 发完 follow-up 后回填)"},
+        {"col": "O", "header": "备注",            "filled_at": "phase3", "merge_rule": "merge_notes(existing, current)"}
+      ],
+      "wrap_text_columns": ["F", "G", "O"]
+    },
+    "batches": {
+      "name": "批次索引",
+      "default_sort": "时间 DESC",
+      "columns": [
+        {"col": "A", "header": "batch_id",        "field": "search_YYYYMMDD_HHMMSS"},
+        {"col": "B", "header": "时间",            "field": "YYYY-MM-DD HH:MM"},
+        {"col": "C", "header": "真实课题",        "field": "project_config.topic_specific"},
+        {"col": "D", "header": "目标公司",        "format": "TSMC(P1) + Intel(P2)"},
+        {"col": "E", "header": "关键词",          "format": "OR 列表 join('、')"},
+        {"col": "F", "header": "总搜索",          "field": "去重后总人数"},
+        {"col": "G", "header": "通过筛选",        "field": "tier1+2+3 总数"},
+        {"col": "H", "header": "已发 Connect",   "field": "实际发送数"},
+        {"col": "I", "header": "当批次 Excel 路径", "field": "~/Downloads/linkedin_search_*.xlsx"}
+      ]
+    }
+  },
+  "styles": {
+    "header_row": {"bg": "4472C4", "fg": "FFFFFF", "bold": true},
+    "tier1_row": {"bg": "C6EFCE"},
+    "tier2_row": {"bg": "DDEBF7"},
+    "tier3_row": {"bg": null},
+    "connect_status_overrides": {
+      "已接受": "FFF2CC",
+      "已 follow-up": "D9E1F2"
+    },
+    "freeze_panes": "A2",
+    "wrap_text_columns_candidates": ["F", "G", "O"]
+  },
+  "merge_logic": {
+    "_comment": "Phase 3 sync_to_dashboard 伪代码：if profile_url in existing → 应用 merge_rule；else → 新增行。每次结束都重新应用样式 + 排序。",
+    "tier_min": "数字越小 tier 越高，取 min",
+    "connect_status_only_when_actioned": "只有 cand.connect_status in (已发送/CANT_RESEND/失败) 才覆盖，否则保留原值"
+  }
+}

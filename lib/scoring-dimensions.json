@@ -1,0 +1,53 @@
+{
+  "_comment": "Phase 1 解析时把 soft_criteria 拆成 3-5 个评分维度（默认 4 个），评分阶段每维度独立打分，最终 score=加权或简单平均。维度本身由 Claude 根据用户原文定义，下方仅给参考结构与示例。",
+  "schema": {
+    "dimensions": [
+      {
+        "key": "string (snake_case 短名)",
+        "label": "string (中文短标签，Excel D 列展示用)",
+        "description": "string (1-2 句，告诉评分员这个维度看什么)",
+        "weight": "number (0-1, 总和=1.0；不写默认均分)"
+      }
+    ]
+  },
+  "score_per_dimension_rules": {
+    "100": "完美匹配，候选人在该维度上是头部",
+    "75": "明显匹配，绝大部分要求满足",
+    "50": "部分匹配，方向对但深度不够",
+    "25": "弱匹配，沾边",
+    "0": "完全不沾"
+  },
+  "final_score_formula": "round(sum(scores[k] * weights[k]) for k in dimensions)",
+  "tier_from_final_score": {
+    "tier1": ">=75",
+    "tier2": ">=50 and <75",
+    "tier3": ">=30 and <50",
+    "excluded": "<30"
+  },
+  "examples": {
+    "tsmc_ruthenium": {
+      "_note": "示例：TSMC/Ruthenium 课题对应的 4 维度",
+      "dimensions": [
+        {"key": "company_match",    "label": "公司匹配",       "description": "是否在 TSMC/Intel 现任或近期前任，且参与 BEOL/互连相关团队", "weight": 0.30},
+        {"key": "topic_depth",       "label": "课题深度",       "description": "是否能就 Ruthenium 替代铜的具体技术（配方/良率/量产/用量）发言", "weight": 0.30},
+        {"key": "seniority_focus",   "label": "资历与聚焦度",   "description": "是否 ≥5 年经验，且至少 2 年集中在 2nm/先进节点 BEOL 工序", "weight": 0.25},
+        {"key": "bonus",             "label": "加分项",          "description": "imec/AMAT/Lam/TEL 经历、Ruthenium/Co replacement 论文、staff 以上 title", "weight": 0.15}
+      ]
+    },
+    "tencent_overseas_gaming": {
+      "_note": "示例：腾讯游戏出海策略课题",
+      "dimensions": [
+        {"key": "company_match",    "label": "公司匹配",       "description": "腾讯/IEG 现任或近期前任，且在出海/海外发行/SLG 相关业务", "weight": 0.30},
+        {"key": "topic_depth",       "label": "课题深度",       "description": "能就具体出海策略（市场进入、本地化、用户获取、监管应对）发言", "weight": 0.35},
+        {"key": "seniority_focus",   "label": "资历与聚焦度",   "description": "≥5 年游戏行业经验，≥3 年聚焦海外市场或出海项目", "weight": 0.25},
+        {"key": "bonus",             "label": "加分项",          "description": "字节 Nuverse/网易雷火 海外岗经历、独立 P1+ 项目主理人、海外 publishing 主导", "weight": 0.10}
+      ]
+    }
+  },
+  "constraints": {
+    "max_dimensions": 5,
+    "min_dimensions": 3,
+    "must_include": "company_match (或语义等价物) — 即便 hard_filters 已限制，评分时也要回看公司维度，否则其他维度无法横向比较",
+    "weights_sum_check": "解析后必须校验 weights 之和=1.0±0.01，否则归一化"
+  }
+}

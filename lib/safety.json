@@ -1,0 +1,24 @@
+{
+  "intervals": {
+    "search_page": [3, 5],
+    "profile": [3, 5],
+    "connect": [6, 10],
+    "_unit": "seconds (random within range)"
+  },
+  "limits": {
+    "single_search_max_people": 1000,
+    "subagent_trigger_threshold": 50,
+    "profile_prefilter_threshold": 200,
+    "fallback_keyword_trigger": 50,
+    "_note": "subagent_trigger_threshold = 候选人 ≥ 此数则用 subagent 拉 Profile + 评分; profile_prefilter_threshold = 召回 > 此数先轻量 headline 预过滤; fallback_keyword_trigger = 前两轮总召回 < 此数才跑 fallback keyword"
+  },
+  "stop_on_status": [401, 403, 429],
+  "error_codes": {
+    "200": {"meaning": "成功", "action": "记录 invitationUrn"},
+    "400_CANT_RESEND_YET": {"meaning": "已有 pending invitation", "action": "跳过该候选人"},
+    "400_WEEKLY_INVITATION_LIMIT_EXCEEDED": {"meaning": "周邀请上限", "action": "停止全部 Phase 3"},
+    "401": {"meaning": "Session 失效", "action": "停止，提示重新登录"},
+    "403": {"meaning": "被限制", "action": "停止"},
+    "429": {"meaning": "频率限制", "action": "停止，等 1h+"}
+  }
+}

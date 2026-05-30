@@ -3,50 +3,110 @@
     "name": "Yujia",
     "title": "Co-founder",
     "company": "FundaAI",
-    "company_description": "a research platform based in Singapore, helping global institutional investors connect with industry professionals"
+    "company_description": "a research platform based in Singapore, helping global institutional investors connect with industry professionals",
+    "platform_url": "https://funda.ai"
   },
   "templates": {
     "type1_friendly": {
       "label": "友好建联",
       "description": "先加好友，连接后再说明目的。适合高价值/敏感候选人，转化率高但周期长",
       "connect_message": "Hi {firstName}, I'm {senderName}, {senderTitle} of {company} — we connect global investors with top tech professionals. {highlight} — would love to connect!",
-      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic}.\n\nWould love to have a 60-min conversation with you — we offer a paid honorarium for your time ({rateRange}).\n\nFeel free to share your preferred email and I'll send over the project details!",
+      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic_obfuscated}.\n\nWould love to have a 60-min conversation with you — we offer a paid honorarium for your time ({rate_range}).\n\nFeel free to share your preferred email and I'll send over the project details!",
       "min_chars": 200,
       "max_chars": 300,
       "tone": "professional yet casual, no hard sell"
     },
     "type2_direct": {
-      "label": "直接专家访谈",
-      "description": "Connect信息中直接提到付费研究咨询项目。效率高，适合大批量触达",
-      "connect_message": "Hi {firstName}, I'm {senderName}, {senderTitle} of {company}. I'm reaching out regarding a paid research consultation on {topic}. {highlight} Would love to connect.",
-      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe're supporting a research project on {topic}.\n\nWould love to have a 60-min conversation with you. We offer a paid honorarium for your time ({rateRange}).\n\nFeel free to share your preferred email and I'll send over the project details!",
+      "label": "明确付费咨询",
+      "description": "Connect note 一步到位：模糊课题 + 付费区间 + 60-min 1-on-1 匿名通话 + 对专家的高度认同（通过 highlight）+ 索取个人邮箱。适合找专家。",
+      "connect_message": "Hi {firstName}, I'm {senderName} at Funda.ai (Singapore-based research + expert network). We're conducting a paid ({rate_range}) research on {topic_obfuscated}. {highlight} Do you have a personal email where I can send the formal invitation and honorarium details?",
+      "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe'd love to schedule the 60-min anonymous consultation on {topic_obfuscated}. The honorarium is {rate_range} for your time.\n\nIf you can share a personal email, I'll send over the formal invitation, project brief, and scheduling link.\n\nThanks!",
+      "highlight_max_chars": 70,
       "min_chars": 200,
-      "max_chars": 300,
-      "tone": "direct, mention paid consultation upfront"
+      "max_chars": 290,
+      "tone": "direct, expert-affirming, topic kept fuzzy via topic_obfuscated"
+    },
+    "type3_detailed_inmail": {
+      "label": "详细背景版",
+      "description": "完整自我介绍 + 平台说明 + 项目背景 + 付费邀请 + 邮箱请求。无字数限制，适合 InMail 或 type1/type2 接受后的 follow-up 长文。",
+      "connect_message": "Hi {firstName},\n\nI hope you're doing well. I'm {senderName} at Funda.ai (https://funda.ai), a Singapore-based platform combining AI-powered research and expert networks to deliver industry insights.\n\nWe're currently supporting a project on {topic_obfuscated}. {highlight}\n\nWe'd like to invite you to a paid ({rate_range}), 60-minute, one-on-one, anonymous call, scheduled at your convenience.\n\nIf this resonates, could you share a personal email so I can send the formal invitation and honorarium details?\n\nThanks!\n{senderName}",
+      "follow_up_after_connect": "",
+      "min_chars": 0,
+      "max_chars": 1900,
+      "tone": "warm, detailed, suitable for InMail or post-connect follow-up"
     }
   },
+  "sender_profiles": {
+    "_comment": "可选的 sender 身份切换。Phase 1.5 让用户在 Yujia / Zadie 之间选；不在此列的人需先在此添加。company / company_description / platform_url 是公司层面的固定信息，不可改。",
+    "Yujia": {
+      "name": "Yujia",
+      "title": "Co-founder"
+    },
+    "Zadie": {
+      "name": "Zadie",
+      "title": ""
+    }
+  },
+  "project_config": {
+    "_comment": "每次寻访由 Phase 1.5 填写，作为模板变量注入。sender 字段是公司身份不可改；sender_profile_key 在 Yujia / Zadie 间切换；其他都是单次项目上下文。",
+    "sender_profile_key": "Zadie",
+    "topic_specific": "",
+    "topic_obfuscated": "",
+    "topic_label": "",
+    "expertise": "",
+    "rate_range": "$300-800/hr"
+  },
   "personalization_rules": {
+    "highlight_principle": "宁可概括，不要过细。一句简短的认可，避免暴露用户真正在追的具体技术/材料/节点。如果不确定怎么提炼，直接用 'Your expertise is exactly what we're looking for —' 这种纯概括版本。",
     "highlight_sources": [
-      "candidate's most relevant position title + company",
-      "specific technology/domain expertise matching the topic",
-      "years of experience in the target area"
+      "candidate's broad domain (e.g. 'BEOL', 'ML infra', 'gaming overseas') — 不要写到具体材料/技术/节点（如 Ruthenium / 2nm / specific framework）",
+      "candidate's company at high level (e.g. 'at TSMC', 'at Google') — 不要写到具体团队/产品",
+      "years of experience in the broad area",
+      "fallback：直接用 'Your expertise is exactly what we're looking for —'"
     ],
     "highlight_examples": [
-      "Your ML Infra work at Google is highly relevant —",
-      "Your 5+ years leading perception at Waymo is exactly the expertise we're looking for —",
-      "Your experience scaling LLM infrastructure at Anthropic caught my eye —"
+      "Your expertise is exactly what we're looking for —",
+      "Your background at TSMC caught my eye —",
+      "Your work in advanced node development is highly relevant —",
+      "Your 10+ years in semiconductor process is exactly the experience we need —"
+    ],
+    "highlight_avoid_examples": [
+      "❌ 'Your BEOL work at TSMC is exactly the expertise...'（暴露 BEOL 这个具体方向）",
+      "❌ 'Your Ruthenium experience at imec...'（直接暴露课题材料）",
+      "❌ 'Your 2nm node integration work...'（暴露节点）"
     ],
     "avoid": [
       "generic phrases like 'your impressive background'",
       "overly long descriptions of the company",
       "'I'd love to pick your brain' (too casual)",
-      "multiple questions in one message"
+      "multiple questions in one message",
+      "暴露真实研究课题的具体技术名/材料名/节点名/产品名"
     ]
   },
-  "rate_range": "200-700 USD/h",
-  "consultation_format": "60-min, 1-on-1, phone or video call",
   "language_rules": {
     "default": "en",
     "use_chinese_when": "candidate name/headline is primarily in Chinese characters"
+  },
+  "fixed_fields": {
+    "_comment": "明确不可修改字段，Phase 1.5 时向用户说明",
+    "list": [
+      "sender.name",
+      "sender.title",
+      "sender.company",
+      "sender.company_description",
+      "sender.platform_url"
+    ]
+  },
+  "configurable_fields": {
+    "_comment": "Phase 1.5 时向用户确认/调整的字段",
+    "list": [
+      "project_config.sender_profile_key（Yujia | Zadie）",
+      "project_config.topic_specific",
+      "project_config.topic_obfuscated",
+      "project_config.topic_label（type3_paid_ask_email 用）",
+      "project_config.expertise（type3_paid_ask_email 用，可填空让 Claude 按候选人 Profile 自动填）",
+      "project_config.rate_range",
+      "话术风格（type1_friendly | type2_direct | type3_paid_ask_email）"
+    ]
   }
 }
