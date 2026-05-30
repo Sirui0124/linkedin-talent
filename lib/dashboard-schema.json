@@ -1,5 +1,5 @@
 {
-  "_comment": "跨批次 master dashboard 列定义。落地路径 ~/.linkedin-talent/dashboard.xlsx。Sheet1=候选人库（按 vanity 跨批次去重），Sheet2=批次索引。",
+  "_comment": "跨批次 master dashboard 列定义。落地路径 ~/.linkedin-talent/dashboard.xlsx（与 lib/paths.js DASHBOARD_PATH 一致）。Sheet1=候选人库（按 profile_url 跨批次去重），Sheet2=批次索引。",
   "filename": "~/.linkedin-talent/dashboard.xlsx",
   "sheets": {
     "candidates": {
@@ -37,7 +37,7 @@
         {"col": "F", "header": "总搜索",          "field": "去重后总人数"},
         {"col": "G", "header": "通过筛选",        "field": "tier1+2+3 总数"},
         {"col": "H", "header": "已发 Connect",   "field": "实际发送数"},
-        {"col": "I", "header": "当批次 Excel 路径", "field": "~/Downloads/linkedin_search_*.xlsx"}
+        {"col": "I", "header": "当批次 Excel 路径", "field": "~/.linkedin-talent/batches/linkedin_<batch_id>.xlsx"}
       ]
     }
   },

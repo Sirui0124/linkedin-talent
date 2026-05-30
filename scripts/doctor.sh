@@ -80,6 +80,18 @@ else
     ok "opencli $OPENCLI_VER"
 fi
 
+# ───────────────────────────── skill 本地依赖 (xlsx) ─────────────────
+SKILL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -f "$SKILL_ROOT/package.json" ]; then
+    if [ -f "$SKILL_ROOT/node_modules/xlsx/xlsx.mjs" ]; then
+        ok "xlsx 依赖已安装"
+    else
+        fail "xlsx 依赖未安装（Phase 4 会失败）"
+        info "修复: cd $SKILL_ROOT && npm install"
+        FIXABLE+=("install_local_deps")
+    fi
+fi
+
 # ───────────────────────────── 死掉的 symlink ─────────────────────────
 # opencli 启动时会扫描 ~/.opencli/clis，对每个文件 require()。
 # 死链导致 ENOENT 警告刷屏。
@@ -167,6 +179,16 @@ if $FIX && [ ${#FIXABLE[@]} -gt 0 ]; then
                 else
                     fail "安装失败 — 检查 npm 权限"
                     BLOCKING+=("install_opencli")
+                fi
+                ;;
+
+            install_local_deps)
+                echo "→ 在 $SKILL_ROOT 安装本地 npm 依赖"
+                if ( cd "$SKILL_ROOT" && npm install --no-audit --no-fund --silent ); then
+                    ok "本地依赖已安装"
+                else
+                    fail "本地依赖安装失败"
+                    BLOCKING+=("install_local_deps")
                 fi
                 ;;
 

@@ -1,0 +1,18 @@
+{
+  "name": "linkedin-talent",
+  "version": "0.2.0",
+  "private": true,
+  "description": "LinkedIn 人才寻访与建联完整链路（Claude Code skill）",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "scripts": {
+    "doctor": "bash scripts/doctor.sh",
+    "doctor:fix": "bash scripts/doctor.sh --fix",
+    "schema:check": "node scripts/schema-check.mjs"
+  }
+}

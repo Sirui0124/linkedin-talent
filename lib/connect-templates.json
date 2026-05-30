@@ -56,6 +56,7 @@
   "project_config": {
     "_comment": "每次寻访由 Phase 1.5 填写，作为模板变量注入。sender 字段是公司身份不可改；sender_profile_key 在 Yujia / Zadie 间切换；其他都是单次项目上下文。",
     "sender_profile_key": "Zadie",
+    "template_type": "type1_friendly",
     "topic_specific": "",
     "topic_obfuscated": "",
     "topic_label": "",

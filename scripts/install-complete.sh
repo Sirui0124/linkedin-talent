@@ -242,6 +242,32 @@ install_opencli() {
     fi
 }
 
+# ──────────────────────────────── skill 本地依赖 (xlsx) ──────────────────────────
+install_local_deps() {
+    log_step "安装 skill 本地 npm 依赖 (xlsx 等)"
+
+    SKILL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    if [ ! -f "$SKILL_ROOT/package.json" ]; then
+        log_warn "package.json 不存在于 $SKILL_ROOT，跳过"
+        return 0
+    fi
+
+    log_dim "在 $SKILL_ROOT 下执行: npm install"
+    if ( cd "$SKILL_ROOT" && npm install --no-audit --no-fund --silent ); then
+        log_success "本地依赖安装完成"
+    else
+        log_error "本地依赖安装失败 — 请手动运行: cd $SKILL_ROOT && npm install"
+        return 1
+    fi
+
+    # 验证 xlsx 可加载
+    if node -e "import('$SKILL_ROOT/node_modules/xlsx/xlsx.mjs').then(()=>process.exit(0)).catch(()=>process.exit(1))" 2>/dev/null; then
+        log_success "xlsx 依赖可加载"
+    else
+        log_warn "xlsx 似乎装了但加载失败"
+    fi
+}
+
 # ──────────────────────────────── 符号链接清理 ─────────────────────────────────────
 fix_broken_symlinks() {
     log_step "检查和修复 opencli 符号链接"
@@ -511,14 +537,16 @@ main() {
     check_npm_permissions
 
     # 工具安装 (部分失败不退出，记录状态)
-    install_opencli || all_success=false
+    install_opencli   || all_success=false
+    install_local_deps || all_success=false
 
     # 配置和修复
     fix_broken_symlinks
 
-    # 服务连接检查 (非阻塞，但记录状态)
-    check_chrome_extension || all_success=false
-    check_linkedin_login || all_success=false
+    # 服务连接检查（非阻塞性提示，不再影响 all_success）
+    # 安装阶段不要求 LinkedIn 已登录；交给 doctor.sh / Phase 0 拦截
+    check_chrome_extension || true
+    check_linkedin_login   || true
 
     # 辅助工具检查
     check_clipboard_tools

@@ -3,138 +3,173 @@
 <head>
 <meta charset="UTF-8">
 <title>LinkedIn Review · __BATCH_ID__</title>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:14px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f2f4f7;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px}
 
 /* ── TOP BAR ── */
-#topbar{background:#1a1a2e;color:#eee;padding:8px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0;font-size:12px}
-#topbar .batch{font-weight:600;font-size:13px;color:#fff}
-#topbar .meta{color:#aaa}
-#topbar-actions{margin-left:auto;display:flex;gap:8px}
-.btn-sm{padding:4px 10px;border-radius:4px;border:none;cursor:pointer;font-size:12px;font-weight:500}
-.btn-outline{background:transparent;color:#ccc;border:1px solid #555}
-.btn-outline:hover{background:#333;color:#fff}
+#topbar{background:#1a1a2e;color:#eee;padding:9px 18px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+#topbar .title{font-size:14px;font-weight:700;color:#fff;white-space:nowrap;margin-right:4px}
+#topbar .meta{font-size:12px;color:#888;white-space:nowrap}
+#topbar .meta strong{color:#ccc;font-weight:500}
+#topbar-actions{margin-left:auto;display:flex;gap:7px;flex-shrink:0}
+.btn-sm{padding:4px 12px;border-radius:5px;border:1px solid #3a3a55;cursor:pointer;font-size:12px;background:transparent;color:#bbb;transition:all .15s;text-decoration:none}
+.btn-sm:hover{background:#252540;color:#fff;border-color:#5555aa}
+.excel-btn{padding:4px 10px;border-color:#3a4a3a;color:#8ec98e}
+.excel-btn:hover{background:#1a2a1a;color:#aaffaa;border-color:#6a9a6a}
 
 /* ── MAIN ── */
 #main{display:flex;flex:1;overflow:hidden}
 
 /* ── LEFT SIDEBAR ── */
-#sidebar{width:280px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;flex-shrink:0}
-#sidebar-header{padding:10px;border-bottom:1px solid #eee}
-#search-box{width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none}
-#search-box:focus{border-color:#1976d2}
-#tier-filter{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.chip{padding:3px 10px;border-radius:12px;border:1px solid #ddd;font-size:11px;cursor:pointer;background:#fff;color:#555;transition:all .15s}
-.chip:hover{background:#f0f4ff}
-.chip.active{background:#1976d2;color:#fff;border-color:#1976d2}
+#sidebar{width:300px;background:#fff;border-right:1px solid #e4e7ec;display:flex;flex-direction:column;flex-shrink:0}
+#sidebar-header{padding:10px 10px 8px;border-bottom:1px solid #f0f2f5}
+#search-box{width:100%;padding:6px 10px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
+#search-box::placeholder{color:#bbb}
+#search-box:focus{border-color:#4a90d9;background:#fff}
+#tier-filter{display:flex;gap:5px;margin-top:8px}
+.chip{padding:3px 9px;border-radius:20px;border:1px solid #ddd;font-size:11px;cursor:pointer;white-space:nowrap;font-weight:500;transition:all .15s}
+.chip.t1{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.chip.t1:not(.active){background:rgba(46,125,50,.12);color:#2e7d32;border-color:#a5d6a7}
+.chip.t1:not(.active):hover{background:rgba(46,125,50,.2)}
+.chip.t1.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.chip.t2{background:#1565c0;color:#fff;border-color:#1565c0}
+.chip.t2:not(.active){background:rgba(21,101,192,.1);color:#1565c0;border-color:#90caf9}
+.chip.t2:not(.active):hover{background:rgba(21,101,192,.18)}
+.chip.t2.active{background:#1565c0;color:#fff;border-color:#1565c0}
+.chip.t3{background:#616161;color:#fff;border-color:#616161}
+.chip.t3:not(.active){background:rgba(97,97,97,.1);color:#616161;border-color:#bdbdbd}
+.chip.t3:not(.active):hover{background:rgba(97,97,97,.18)}
+.chip.t3.active{background:#616161;color:#fff;border-color:#616161}
+.chip.all{background:#fff;color:#555;border-color:#ccc}
+.chip.all.active{background:#eee;color:#111;border-color:#999;font-weight:600}
+.chip.all:not(.active):hover{background:#f5f5f5}
+
 #candidate-list{overflow-y:auto;flex:1}
-.cand-item{display:flex;align-items:stretch;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;position:relative}
-.cand-item:hover{background:#fafafa}
+.cand-item{display:flex;align-items:center;cursor:pointer;border-bottom:1px solid #f4f5f7;padding:9px 12px;gap:9px;transition:background .1s}
+.cand-item:hover{background:#fafbfd}
 .cand-item.selected{background:#e8f0fe}
-.tier-bar{width:4px;flex-shrink:0}
-.tier-bar.t1{background:#4CAF50}
-.tier-bar.t2{background:#2196F3}
-.tier-bar.t3{background:#9E9E9E}
-.cand-info{padding:8px 10px;flex:1;min-width:0}
-.cand-name{font-size:13px;font-weight:500;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cand-sub{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.status-dot{width:8px;height:8px;border-radius:50%;align-self:center;margin-right:8px;flex-shrink:0;background:#e0e0e0}
-.status-dot.connect{background:#4CAF50}
-.status-dot.reject{background:#f44336}
+.cand-info{flex:1;min-width:0}
+.cand-name{font-size:13px;font-weight:600;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cand-sub{font-size:11px;color:#8a94a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#dde2ea}
+.status-dot.connect{background:#43a047}
+.status-dot.reject{background:#e53935}
 
 /* ── RIGHT DETAIL ── */
-#detail{flex:1;overflow-y:auto;padding:20px;background:#f9f9f9}
-#detail.empty{display:flex;align-items:center;justify-content:center;color:#bbb;font-size:15px}
+#detail{flex:1;overflow-y:auto;padding:20px 24px;background:#f2f4f7}
+#detail.empty{display:flex;align-items:center;justify-content:center;color:#bbb;font-size:14px}
 
-.detail-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
-.detail-name{font-size:18px;font-weight:600;color:#111}
-.detail-subtitle{font-size:13px;color:#666;margin-top:3px}
-.li-link{margin-left:auto;font-size:12px;color:#1976d2;text-decoration:none;white-space:nowrap;padding:4px 10px;border:1px solid #1976d2;border-radius:4px}
-.li-link:hover{background:#e8f0fe}
+/* Candidate header: name + LinkedIn + action buttons all one row */
+.detail-header{display:flex;align-items:center;gap:10px;margin-bottom:5px;flex-wrap:wrap}
+.detail-name{font-size:20px;font-weight:700;color:#111;flex-shrink:0}
+.li-link{flex-shrink:0;font-size:12px;color:#1565c0;text-decoration:none;white-space:nowrap}
+.li-link:hover{text-decoration:underline}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.detail-submeta{font-size:12px;color:#777;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-connect{background:#fff;color:#2e7d32;border:1.5px solid #43a047;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-connect:hover{background:#f1f8f1}
+.btn-connect.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.btn-reject{background:#fff;color:#c62828;border:1.5px solid #e53935;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-reject:hover{background:#fdf2f2}
+.btn-reject.active{background:#c62828;color:#fff;border-color:#c62828}.btn-connect{background:#fff;color:#2e7d32;border:1.5px solid #43a047;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-connect:hover{background:#f1f8f1}
+.btn-connect.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.btn-reject{background:#fff;color:#c62828;border:1.5px solid #e53935;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-reject:hover{background:#fdf2f2}
+.btn-reject.active{background:#c62828;color:#fff;border-color:#c62828}
 
-.section{background:#fff;border-radius:8px;border:1px solid #e8e8e8;padding:14px;margin-bottom:12px}
-.section-title{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+/* ── SECTIONS ── */
+.section{background:#fff;border-radius:7px;border:1px solid #e8ecf0;padding:12px 14px;margin-bottom:10px}
+.section-title{font-size:10px;font-weight:700;color:#b0b8c4;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
 
-/* Connect message editable */
-#connect-msg{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px;font-size:13px;line-height:1.5;resize:vertical;min-height:80px;font-family:inherit;outline:none}
-#connect-msg:focus{border-color:#1976d2}
-.char-count{font-size:11px;color:#aaa;text-align:right;margin-top:4px}
+/* Connect textarea — no title */
+.connect-section{margin-bottom:10px}
+#connect-msg{width:100%;border:1px solid #e4e8ed;border-radius:5px;padding:9px 11px;font-size:12px;line-height:1.55;resize:vertical;min-height:72px;font-family:inherit;outline:none;color:#333;background:#fafbfc;display:block}
+#connect-msg:focus{border-color:#4a90d9;background:#fff}
+.char-count{font-size:11px;color:#b8c0cc;text-align:right;margin-top:4px}
 .char-count.warn{color:#e67e22}
 .char-count.over{color:#e53935}
 
-.action-row{display:flex;gap:8px;margin-top:10px}
-.btn-connect{background:#4CAF50;color:#fff;border:none;padding:7px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
-.btn-connect:hover{background:#388E3C}
-.btn-connect.active{background:#388E3C;box-shadow:0 0 0 2px #a5d6a7}
-.btn-reject{background:#fff;color:#e53935;border:1px solid #e53935;padding:7px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
-.btn-reject:hover{background:#fdecea}
-.btn-reject.active{background:#fdecea;box-shadow:0 0 0 2px #ffcdd2}
+/* Two-column row */
+.two-col{display:flex;gap:10px;margin-bottom:10px}
+.two-col .section{flex:1;margin-bottom:0}
+
+/* Inline score */
+.score-inline{font-size:13px;line-height:1.6;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px;margin-bottom:6px}
+.score-seg{display:inline-flex;align-items:baseline;gap:3px}
+.s-label{color:#888;font-size:12px}
+.s-val{font-weight:700;font-size:14px}
+.s-val.high{color:#2e7d32}
+.s-val.mid{color:#e65100}
+.s-val.low{color:#c62828}
+.score-dot{color:#d0d8e4;margin:0 5px;font-size:12px}
+.reasoning{font-size:11px;color:#96a0b0;line-height:1.55;font-style:italic}
+
+/* Signals */
+.signal-line{display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px}
+.signal-icon{flex-shrink:0;font-weight:700;font-size:11px;margin-top:1px}
+.signal-line.match .signal-icon{color:#2e7d32}
+.signal-line.match .signal-text{color:#2a2a2a}
+.signal-line.miss .signal-icon{color:#c62828}
+.signal-line.miss .signal-text{color:#888}
 
 /* Experience */
-.exp-item{margin-bottom:8px}
-.exp-company{font-size:13px;font-weight:500;color:#222}
-.exp-title{font-size:12px;color:#555}
-.exp-period{font-size:11px;color:#999;margin-top:1px}
-.exp-target{border-left:3px solid #1976d2;padding-left:8px}
-
-/* Skills */
-.skill-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-.skill-tag{background:#e8f0fe;color:#1a237e;border-radius:3px;padding:2px 8px;font-size:11px}
-
-/* Score breakdown */
-.score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.score-label{font-size:12px;color:#555}
-.score-bar-wrap{flex:1;height:6px;background:#eee;border-radius:3px;margin:0 10px}
-.score-bar-fill{height:6px;border-radius:3px;transition:width .3s}
-.score-val{font-size:12px;font-weight:600;width:28px;text-align:right;color:#333}
-
-.reasoning-text{font-size:12px;color:#777;line-height:1.5;margin-top:4px}
-.signals{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.signal-tag{font-size:11px;padding:2px 7px;border-radius:3px}
-.signal-match{background:#e8f5e9;color:#2e7d32}
-.signal-miss{background:#fce4ec;color:#c62828}
+.exp-list{display:flex;flex-direction:column;gap:10px}
+.exp-item{display:flex;gap:10px;align-items:flex-start}
+.exp-icon{width:30px;height:30px;background:#e8ecf0;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.exp-icon svg{width:14px;height:14px;fill:none;stroke:#aab4c4;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.exp-body{}
+.exp-company{font-size:12px;font-weight:700;color:#111}
+.exp-title{font-size:12px;color:#555;margin-top:1px}
+.exp-period{font-size:11px;color:#aab4c4;margin-top:1px}
+.exp-desc{font-size:11px;color:#888;margin-top:3px;line-height:1.45}
 
 /* ── BOTTOM BAR ── */
-#bottombar{background:#fff;border-top:1px solid #ddd;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0}
-#status-counts{font-size:13px;color:#555}
-#status-counts span{font-weight:600}
-.count-connect{color:#4CAF50}
-.count-reject{color:#e53935}
-.count-skip{color:#9E9E9E}
+#bottombar{background:#fff;border-top:1px solid #e4e7ec;padding:10px 18px;display:flex;align-items:center;flex-shrink:0}
+.cnt-group{display:flex;align-items:baseline;gap:4px}
+.cnt-group+.cnt-group{margin-left:18px}
+.cnt-label{font-size:13px;color:#96a0b0}
+.cnt-val{font-weight:700;font-size:13px}
+.cnt-val.green{color:#2e7d32}
+.cnt-val.red{color:#c62828}
+.cnt-val.gray{color:#888}
 #bottombar-btns{margin-left:auto;display:flex;gap:8px}
-.btn-primary{background:#1976d2;color:#fff;border:none;padding:8px 18px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:500}
-.btn-primary:hover{background:#1565c0}
-.btn-secondary{background:#fff;color:#333;border:1px solid #ccc;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:13px}
-.btn-secondary:hover{background:#f5f5f5}
+.btn-export{background:#fff;color:#555;border:1px solid #d0d8e4;padding:7px 15px;border-radius:6px;cursor:pointer;font-size:13px;transition:all .15s}
+.btn-export:hover{background:#f5f7fa}
+.btn-copy{background:#1a1a2e;color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s}
+.btn-copy:hover{background:#2a2a48}
 
-/* ── COPY TOAST ── */
-#toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:5px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+/* ── TOAST ── */
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 16px;border-radius:5px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 #toast.show{opacity:1}
 </style>
 </head>
 <body>
 
 <div id="topbar">
-  <span class="batch">__BATCH_ID__</span>
-  <span class="meta">__TOPIC__</span>
-  <span class="meta">__COMPANIES__</span>
-  <span class="meta">共 <strong>__TOTAL__</strong> 人</span>
+  <span class="title">LinkedIn Review</span>
+  <label class="btn-sm excel-btn" title="从 batches 目录加载候选人 Excel">
+    📂 加载 Excel
+    <input type="file" accept=".xlsx" style="display:none" onchange="loadExcel(event)">
+  </label>
+  <span class="meta">__BATCH_ID__ · __TOPIC__ · 共 <strong>__TOTAL__</strong> 人</span>
   <div id="topbar-actions">
-    <button class="btn-sm btn-outline" onclick="markAll('connect')">全部建联</button>
-    <button class="btn-sm btn-outline" onclick="clearAll()">清除标记</button>
+    <button class="btn-sm" onclick="markAll('connect')">全部建联</button>
+    <button class="btn-sm" onclick="clearAll()">清除标记</button>
   </div>
 </div>
 
 <div id="main">
   <div id="sidebar">
     <div id="sidebar-header">
-      <input id="search-box" type="text" placeholder="搜索姓名、公司、职位…" oninput="filterList()">
+      <input id="search-box" type="text" placeholder="搜索姓名 / 公司 / Headline..." oninput="filterList()">
       <div id="tier-filter">
-        <span class="chip active" data-tier="all" onclick="setTierFilter('all',this)">全部</span>
-        <span class="chip" data-tier="1" onclick="setTierFilter('1',this)">T1 <span id="c1">0</span></span>
-        <span class="chip" data-tier="2" onclick="setTierFilter('2',this)">T2 <span id="c2">0</span></span>
-        <span class="chip" data-tier="3" onclick="setTierFilter('3',this)">T3 <span id="c3">0</span></span>
+        <span class="chip t1" data-tier="1" onclick="setTier('1',this)">T1 <span id="c1">0</span></span>
+        <span class="chip t2" data-tier="2" onclick="setTier('2',this)">T2 <span id="c2">0</span></span>
+        <span class="chip t3" data-tier="3" onclick="setTier('3',this)">T3 <span id="c3">0</span></span>
+        <span class="chip all active" data-tier="all" onclick="setTier('all',this)">全部</span>
       </div>
     </div>
     <div id="candidate-list"></div>
@@ -144,163 +179,228 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div id="bottombar">
-  <div id="status-counts">
-    建联 <span class="count-connect" id="cnt-connect">0</span> ·
-    不准确 <span class="count-reject" id="cnt-reject">0</span> ·
-    未评价 <span class="count-skip" id="cnt-skip">0</span>
-  </div>
+  <div class="cnt-group"><span class="cnt-label">建联</span><span class="cnt-val green" id="cnt-connect">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">不准确</span><span class="cnt-val red" id="cnt-reject">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">未评价</span><span class="cnt-val gray" id="cnt-skip">0</span></div>
   <div id="bottombar-btns">
-    <button class="btn-secondary" onclick="exportDecisions()">导出决策 JSON</button>
-    <button class="btn-primary" onclick="copyConnectList()">复制建联名单</button>
+    <button class="btn-export" onclick="exportDecisions()">导出文件</button>
+    <button class="btn-copy" onclick="copyConnectList()">复制建联名单</button>
   </div>
 </div>
 
 <div id="toast"></div>
 
 <script>
-// ── DATA (injected by phase4-export-excel.mjs) ────────────────────────────────
 const CANDIDATES = __CANDIDATES_JSON__;
 const BATCH_META = __BATCH_META_JSON__;
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-const decisions = {}; // vanity → {action:'connect'|'reject'|'skip', note, edited}
+const decisions = {};
 let currentVanity = null;
 let tierFilter = 'all';
 
-// init decisions
 CANDIDATES.forEach(c => {
   decisions[c.vanity] = { action: 'skip', note: c.connect_message || '', edited: false };
 });
 
-// ── RENDER SIDEBAR ────────────────────────────────────────────────────────────
+// ── LOAD FROM EXCEL ───────────────────────────────────────────────────────────
+async function loadExcel(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { showToast('SheetJS 未加载，请检查网络连接'); return; }
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(ab);
+  const ws = wb.Sheets['候选人'];
+  if (!ws) { showToast('找不到「候选人」工作表'); return; }
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  const header = rows[0] || [];
+  const col = {};
+  header.forEach((h, i) => { if (h) col[String(h).trim()] = i; });
+
+  const dimMap = { '公司': 'company_match', '课题': 'topic_depth', '资历': 'stem_background', '加分': 'bonus' };
+  const parseScores = (str) => String(str || '').split(' / ').map(seg => {
+    const [k, v] = seg.split(':');
+    const key = dimMap[k?.trim()] || k?.trim();
+    return key ? { key, score: parseInt(v) || 0 } : null;
+  }).filter(Boolean);
+
+  const parsePositions = (str) => String(str || '').split('\n').filter(s => s.trim()).map(line => {
+    const parts = line.split(' | ');
+    const yrStr = parts[2]?.trim() || '';
+    const [sy, ey] = yrStr.split('-');
+    return { company: parts[0]?.trim(), title: parts[1]?.trim(),
+      startYear: parseInt(sy) || null, endYear: (ey === 'now' || ey === '至今') ? null : parseInt(ey) || null };
+  });
+
+  const loaded = rows.slice(1).filter(r => r[col['Vanity']] || r[col['姓名']]).map(r => {
+    const tierRaw = String(r[col['Tier']] || '');
+    const tierNum = parseInt(tierRaw.match(/\d/)?.[0]) || 0;
+    const targetPos = parsePositions(r[col['目标公司经历']]);
+    const otherPos  = parsePositions(r[col['其他经历']]);
+    return {
+      name: String(r[col['姓名']] || ''),
+      current_title: String(r[col['当前职位']] || ''),
+      current_company: String(r[col['当前公司']] || ''),
+      headline: String(r[col['当前职位']] || ''),
+      tier: tierNum,
+      score: r[col['总分']] ?? null,
+      scores_breakdown: parseScores(r[col['分项评分']]),
+      reasoning: String(r[col['评分理由']] || ''),
+      matched_signals: String(r[col['matched_signals']] || '').split('; ').filter(Boolean),
+      missed_signals:  String(r[col['missed_signals']]  || '').split('; ').filter(Boolean),
+      highlight_for_outreach: String(r[col['highlight_for_outreach']] || ''),
+      connect_message: String(r[col['Connect 话术']] || ''),
+      profile_url: String(r[col['Profile URL']] || ''),
+      vanity: String(r[col['Vanity']] || ''),
+      urn: String(r[col['URN']] || ''),
+      connect_status: String(r[col['Connect状态']] || ''),
+      location: String(r[col['地点']] || ''),
+      positions: targetPos.concat(otherPos),
+    };
+  });
+
+  if (!loaded.length) { showToast('未解析到候选人数据'); event.target.value = ''; return; }
+
+  // Replace in-place so existing const binding stays valid
+  CANDIDATES.length = 0;
+  loaded.forEach(c => CANDIDATES.push(c));
+  Object.keys(decisions).forEach(k => delete decisions[k]);
+  CANDIDATES.forEach(c => {
+    decisions[c.vanity] = { action: 'skip', note: c.connect_message || '', edited: false };
+  });
+  currentVanity = null;
+  tierFilter = 'all';
+  document.querySelectorAll('#tier-filter .chip').forEach(c => c.classList.remove('active'));
+  document.querySelector('.chip.all')?.classList.add('active');
+  document.getElementById('detail').className = 'empty';
+  document.getElementById('detail').innerHTML = '← 从左侧选择候选人';
+  // Update topbar meta
+  document.querySelector('#topbar .meta strong').textContent = loaded.length;
+  renderList();
+  showToast(`已加载「${file.name}」· ${loaded.length} 位候选人`);
+  event.target.value = '';
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
 function renderList() {
   const q = document.getElementById('search-box').value.toLowerCase();
   const list = document.getElementById('candidate-list');
-  let filtered = CANDIDATES.filter(c => {
+  const filtered = CANDIDATES.filter(c => {
     if (tierFilter !== 'all' && String(c.tier) !== tierFilter) return false;
     if (q && !`${c.name} ${c.current_company} ${c.current_title} ${c.headline}`.toLowerCase().includes(q)) return false;
     return true;
   });
-
   list.innerHTML = filtered.map(c => {
     const d = decisions[c.vanity];
-    const dotClass = d.action === 'connect' ? 'connect' : d.action === 'reject' ? 'reject' : '';
-    const tierClass = c.tier === 1 ? 't1' : c.tier === 2 ? 't2' : 't3';
-    const selClass = c.vanity === currentVanity ? ' selected' : '';
-    const totalYrs = calcTotalYrs(c.positions || []);
-    return `<div class="cand-item${selClass}" onclick="selectCandidate('${c.vanity}')">
-      <div class="tier-bar ${tierClass}"></div>
+    const dotCls = d.action === 'connect' ? 'connect' : d.action === 'reject' ? 'reject' : '';
+    const selCls = c.vanity === currentVanity ? ' selected' : '';
+    const sub = [c.current_company, c.current_title].filter(Boolean).join(' · ');
+    return `<div class="cand-item${selCls}" onclick="selectCandidate('${c.vanity}')">
       <div class="cand-info">
         <div class="cand-name">${esc(c.name)}</div>
-        <div class="cand-sub">${esc(c.current_company || '')}${totalYrs ? ' · ' + totalYrs + 'yr' : ''}</div>
+        <div class="cand-sub">${esc(sub)}</div>
       </div>
-      <div class="status-dot ${dotClass}"></div>
+      <div class="status-dot ${dotCls}"></div>
     </div>`;
   }).join('');
-
-  // tier counts
-  const c = CANDIDATES;
-  document.getElementById('c1').textContent = c.filter(x=>x.tier===1).length;
-  document.getElementById('c2').textContent = c.filter(x=>x.tier===2).length;
-  document.getElementById('c3').textContent = c.filter(x=>x.tier===3).length;
+  document.getElementById('c1').textContent = CANDIDATES.filter(x => x.tier === 1).length;
+  document.getElementById('c2').textContent = CANDIDATES.filter(x => x.tier === 2).length;
+  document.getElementById('c3').textContent = CANDIDATES.filter(x => x.tier === 3).length;
   updateCounts();
 }
 
-function calcTotalYrs(positions) {
-  if (!positions.length) return 0;
-  const starts = positions.map(p => p.startYear).filter(Boolean);
-  if (!starts.length) return 0;
-  return new Date().getFullYear() - Math.min(...starts);
-}
-
-// ── SELECT CANDIDATE ──────────────────────────────────────────────────────────
+// ── DETAIL ────────────────────────────────────────────────────────────────────
 function selectCandidate(vanity) {
   currentVanity = vanity;
   const c = CANDIDATES.find(x => x.vanity === vanity);
   if (!c) return;
   const d = decisions[vanity];
-
   const profileUrl = c.profile_url || `https://www.linkedin.com/in/${vanity}`;
-  const totalYrs = calcTotalYrs(c.positions || []);
   const pos = c.positions || [];
   const targetCos = (BATCH_META.target_companies || []).map(x => x.toLowerCase());
-  const targetPos = pos.filter(p => targetCos.some(tc => (p.company||'').toLowerCase().includes(tc)));
-  const otherPos = pos.filter(p => !targetCos.some(tc => (p.company||'').toLowerCase().includes(tc)));
 
-  // Score bars
+  // Header submeta: title @ company · Xyr
+  const curPos = pos.find(p => !p.endYear);
+  const curComp = c.current_company || (curPos?.company) || '';
+  const curTitle = c.current_title || (curPos?.title) || '';
+  const targetFirst = pos.find(p => targetCos.some(tc => (p.company||'').toLowerCase().includes(tc)));
+  const totalYrs = (() => {
+    const starts = pos.map(p => p.startYear).filter(Boolean);
+    return starts.length ? new Date().getFullYear() - Math.min(...starts) : 0;
+  })();
+  const submetaParts = [curTitle && curComp ? `${curTitle} @ ${curComp}` : curTitle || curComp, totalYrs ? `${totalYrs}yr` : ''].filter(Boolean).join(' · ');
+
+  // Score inline
   const dims = c.scores_breakdown || [];
-  const dimColors = { company_match:'#4CAF50', topic_depth:'#2196F3', seniority_focus:'#FF9800', bonus:'#9C27B0' };
-  const dimLabels = { company_match:'公司匹配', topic_depth:'课题深度', seniority_focus:'资历聚焦', bonus:'加分项' };
-  const scoreHtml = dims.map(d => {
-    const color = dimColors[d.key] || '#999';
-    const label = dimLabels[d.key] || d.key;
-    return `<div class="score-row">
-      <span class="score-label">${label}</span>
-      <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${d.score}%;background:${color}"></div></div>
-      <span class="score-val">${d.score}</span>
-    </div>`;
+  const dimLabels = { company_match: '公司', topic_depth: '课题', seniority_focus: '资历', stem_background: '资历', bonus: '加分' };
+  const scoreHtml = dims.map((dim, i) => {
+    const lbl = dimLabels[dim.key] || dim.key;
+    const sc = dim.score ?? 0;
+    const cls = sc >= 75 ? 'high' : sc >= 50 ? 'mid' : 'low';
+    const dot = i < dims.length - 1 ? `<span class="score-dot">·</span>` : '';
+    return `<span class="score-seg"><span class="s-label">${lbl} </span><span class="s-val ${cls}">${sc}</span></span>${dot}`;
   }).join('');
 
+  // Signals
+  const matchedHtml = (c.matched_signals || []).map(s =>
+    `<div class="signal-line match"><span class="signal-icon">✓</span><span class="signal-text">${esc(s)}</span></div>`
+  ).join('');
+  const missedHtml = (c.missed_signals || []).map(s =>
+    `<div class="signal-line miss"><span class="signal-icon">✗</span><span class="signal-text">${esc(s)}</span></div>`
+  ).join('');
+
   // Experience
-  function expHtml(positions, isTarget) {
-    return positions.slice(0, isTarget ? 5 : 3).map(p => {
-      const yr = `${p.startYear||'?'} - ${p.endYear||'至今'}`;
-      const yrs = (p.endYear||new Date().getFullYear()) - (p.startYear||new Date().getFullYear());
-      return `<div class="exp-item ${isTarget?'exp-target':''}">
-        <div class="exp-company">${esc(p.company||'')}</div>
-        <div class="exp-title">${esc(p.title||'')}</div>
-        <div class="exp-period">${yr}${yrs>0?' ('+yrs+'yr)':''}</div>
-      </div>`;
-    }).join('') || '<span style="color:#bbb;font-size:12px">—</span>';
-  }
+  const expHtml = pos.slice(0, 7).map(p => {
+    const start = p.startYear || '?';
+    const end = p.endYear || '至今';
+    const dur = ((p.endYear || new Date().getFullYear()) - (p.startYear || new Date().getFullYear()));
+    const durStr = dur > 0 ? ` (${dur}yr)` : '';
+    const desc = p.desc ? `<div class="exp-desc">${esc(p.desc)}</div>` : '';
+    return `<div class="exp-item">
+      <div class="exp-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div>
+      <div class="exp-body">
+        <div class="exp-company">${esc(p.company || '')}</div>
+        <div class="exp-title">${esc(p.title || '')}</div>
+        <div class="exp-period">${start} – ${end}${durStr}</div>
+        ${desc}
+      </div>
+    </div>`;
+  }).join('') || '<span style="color:#ccc;font-size:12px">—</span>';
 
-  const skills = (c.skills||[]).map(s => `<span class="skill-tag">${esc(s)}</span>`).join('');
-  const matchTags = (c.matched_signals||[]).map(s=>`<span class="signal-tag signal-match">${esc(s)}</span>`).join('');
-  const missTags = (c.missed_signals||[]).map(s=>`<span class="signal-tag signal-miss">${esc(s)}</span>`).join('');
-
-  const connectActive = d.action === 'connect' ? ' active' : '';
-  const rejectActive  = d.action === 'reject'  ? ' active' : '';
+  const caActive = d.action === 'connect' ? ' active' : '';
+  const reActive  = d.action === 'reject'  ? ' active' : '';
 
   document.getElementById('detail').className = '';
   document.getElementById('detail').innerHTML = `
     <div class="detail-header">
-      <div>
-        <div class="detail-name">${esc(c.name)} · ${c.score != null ? c.score+'分' : ''}</div>
-        <div class="detail-subtitle">${esc(c.current_title||'')} @ ${esc(c.current_company||'')}${totalYrs ? ' · '+totalYrs+'yr' : ''}</div>
-      </div>
+      <span class="detail-name">${esc(c.name)}</span>
       <a href="${profileUrl}" target="_blank" class="li-link">LinkedIn ↗</a>
-    </div>
-
-    <div class="section">
-      <div class="section-title">建联话术 (可直接编辑)</div>
-      <textarea id="connect-msg" onkeyup="onMsgEdit()">${esc(d.note)}</textarea>
-      <div class="char-count" id="char-count">${d.note.length} / 290 字符</div>
-      <div class="action-row">
-        <button class="btn-connect${connectActive}" onclick="setAction('connect')">建联</button>
-        <button class="btn-reject${rejectActive}" onclick="setAction('reject')">不准确</button>
+      <div class="header-actions">
+        <button class="btn-connect${caActive}" onclick="setAction('connect')">建联</button>
+        <button class="btn-reject${reActive}" onclick="setAction('reject')">不准确</button>
       </div>
     </div>
+    <div class="detail-submeta">${esc(submetaParts)}</div>
 
-    ${dims.length ? `<div class="section">
-      <div class="section-title">评分明细 · 总分 ${c.score??'—'}</div>
-      ${scoreHtml}
-      ${c.reasoning ? `<div class="reasoning-text">${esc(c.reasoning)}</div>` : ''}
-      ${matchTags||missTags ? `<div class="signals">${matchTags}${missTags}</div>` : ''}
+    <div class="section connect-section">
+      <textarea id="connect-msg" onkeyup="onMsgEdit()">${esc(d.note)}</textarea>
+      <div class="char-count" id="char-count">${d.note.length}/290</div>
+    </div>
+
+    ${dims.length || matchedHtml || missedHtml ? `<div class="two-col">
+      ${dims.length ? `<div class="section">
+        <div class="section-title">匹配度</div>
+        <div class="score-inline">${scoreHtml}</div>
+        ${c.reasoning ? `<div class="reasoning">${esc(c.reasoning)}</div>` : ''}
+      </div>` : ''}
+      ${matchedHtml || missedHtml ? `<div class="section">
+        <div class="section-title">命中 / 缺失信号</div>
+        ${matchedHtml}${missedHtml}
+      </div>` : ''}
     </div>` : ''}
 
-    ${targetPos.length ? `<div class="section">
-      <div class="section-title">目标公司经历</div>
-      ${expHtml(targetPos, true)}
-    </div>` : ''}
-
-    ${otherPos.length ? `<div class="section">
-      <div class="section-title">其他经历</div>
-      ${expHtml(otherPos, false)}
-    </div>` : ''}
-
-    ${skills ? `<div class="section">
-      <div class="section-title">技能</div>
-      <div class="skill-tags">${skills}</div>
+    ${pos.length ? `<div class="section">
+      <div class="section-title">工作经历</div>
+      <div class="exp-list">${expHtml}</div>
     </div>` : ''}
   `;
 
@@ -312,11 +412,10 @@ function selectCandidate(vanity) {
 function setAction(action) {
   if (!currentVanity) return;
   const d = decisions[currentVanity];
-  d.action = d.action === action ? 'skip' : action; // toggle
-  // sync note from textarea
+  d.action = d.action === action ? 'skip' : action;
   const ta = document.getElementById('connect-msg');
   if (ta) d.note = ta.value;
-  selectCandidate(currentVanity); // re-render
+  selectCandidate(currentVanity);
 }
 
 function onMsgEdit() {
@@ -332,12 +431,13 @@ function updateCharCount() {
   const cc = document.getElementById('char-count');
   if (!ta || !cc) return;
   const n = ta.value.length;
-  cc.textContent = `${n} / 290 字符`;
+  cc.textContent = `${n}/290`;
   cc.className = 'char-count' + (n > 290 ? ' over' : n > 260 ? ' warn' : '');
 }
 
 function filterList() { renderList(); }
-function setTierFilter(tier, el) {
+
+function setTier(tier, el) {
   tierFilter = tier;
   document.querySelectorAll('#tier-filter .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
@@ -346,30 +446,25 @@ function setTierFilter(tier, el) {
 
 function updateCounts() {
   const vals = Object.values(decisions);
-  document.getElementById('cnt-connect').textContent = vals.filter(d=>d.action==='connect').length;
-  document.getElementById('cnt-reject').textContent  = vals.filter(d=>d.action==='reject').length;
-  document.getElementById('cnt-skip').textContent    = vals.filter(d=>d.action==='skip').length;
+  document.getElementById('cnt-connect').textContent = vals.filter(d => d.action === 'connect').length;
+  document.getElementById('cnt-reject').textContent  = vals.filter(d => d.action === 'reject').length;
+  document.getElementById('cnt-skip').textContent    = vals.filter(d => d.action === 'skip').length;
 }
 
 function markAll(action) {
   CANDIDATES.forEach(c => { decisions[c.vanity].action = action; });
-  if (currentVanity) selectCandidate(currentVanity);
-  else renderList();
-}
-function clearAll() {
-  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'skip'; });
-  if (currentVanity) selectCandidate(currentVanity);
-  else renderList();
+  if (currentVanity) selectCandidate(currentVanity); else renderList();
 }
 
-// ── EXPORT / COPY ─────────────────────────────────────────────────────────────
+function clearAll() {
+  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'skip'; });
+  if (currentVanity) selectCandidate(currentVanity); else renderList();
+}
+
 function copyConnectList() {
-  const list = CANDIDATES
-    .filter(c => decisions[c.vanity]?.action === 'connect')
-    .map(c => c.vanity)
-    .join('\n');
+  const list = CANDIDATES.filter(c => decisions[c.vanity]?.action === 'connect').map(c => c.vanity).join('\n');
   if (!list) { showToast('没有标记建联的人选'); return; }
-  navigator.clipboard.writeText(list).then(() => showToast(`已复制 ${list.split('\n').length} 人的 vanity 列表`));
+  navigator.clipboard.writeText(list).then(() => showToast(`已复制 ${list.split('\n').length} 人`));
 }
 
 function exportDecisions() {
@@ -399,10 +494,9 @@ function showToast(msg) {
 }
 
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
 renderList();
 if (CANDIDATES.length > 0) selectCandidate(CANDIDATES[0].vanity);
 </script>

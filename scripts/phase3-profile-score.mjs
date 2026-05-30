@@ -3,49 +3,58 @@
  * Phase 3: Profile fetch → L2 hard filter → L2.5 rule score → L3 LLM score
  *
  * Usage:
+ *   node phase3-profile-score.mjs --batch-id <id>
+ *     # 自动按 lib/paths.js 解析输入输出路径
+ *
+ *   或显式指定（高级用法）:
  *   node phase3-profile-score.mjs \
- *     --input  ../data/batches/raw-YYYYMMDD.json \
- *     --criteria ../data/criteria/YYYYMMDD.json \
- *     [--output ../data/exports/phase3-YYYYMMDD.json] \
- *     [--resume ../data/exports/phase3-partial.json]  # 断点续跑
+ *     --input    ~/.linkedin-talent/exports/raw_<id>.json \
+ *     --criteria ~/.linkedin-talent/criteria/<id>.json \
+ *     [--output  ~/.linkedin-talent/exports/phase3_<id>.json] \
+ *     [--resume  <phase3-partial.json>]
  *
- * Input (raw candidates JSON):
- *   { candidates: [{name, headline, vanity, urn, profile_url, hits}], ... }
- *
- * Criteria JSON:
- *   { hard_filters: {...}, scoring_dimensions: [...] }
- *   (由 Phase 1 解析生成，结构见 phases/01-parse-criteria.md)
- *
- * Output:
- *   { summary: {...}, passed: [...], failed: [...] }
+ * Output: { summary, passed, failed }
  */
 
 import { execFileSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dir = dirname(fileURLToPath(import.meta.url));
-const SKILL_ROOT = resolve(__dir, '..');
+import { resolve } from 'path';
+import {
+  rawCandidatesPath, criteriaPath, phase3JsonPath, ensureDataDirs,
+} from '../lib/paths.js';
+import { isValidBatchId } from '../lib/naming.js';
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { input: null, criteria: null, output: null, resume: null };
+  const opts = { batchId: null, input: null, criteria: null, output: null, resume: null };
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--batch-id') opts.batchId  = args[++i];
     if (args[i] === '--input')    opts.input    = resolve(args[++i]);
     if (args[i] === '--criteria') opts.criteria = resolve(args[++i]);
     if (args[i] === '--output')   opts.output   = resolve(args[++i]);
     if (args[i] === '--resume')   opts.resume   = resolve(args[++i]);
   }
+  // 通过 batch-id 自动展开
+  if (opts.batchId) {
+    if (!isValidBatchId(opts.batchId)) {
+      console.error(`[error] 非法 batch-id: ${opts.batchId}（格式: search_YYYYMMDD_HHMM[_LABEL]）`);
+      process.exit(1);
+    }
+    opts.input    ??= rawCandidatesPath(opts.batchId);
+    opts.criteria ??= criteriaPath(opts.batchId);
+    opts.output   ??= phase3JsonPath(opts.batchId);
+  }
   if (!opts.input || !opts.criteria) {
-    console.error('Usage: node phase3-profile-score.mjs --input <raw.json> --criteria <criteria.json> [--output <out.json>] [--resume <partial.json>]');
+    console.error('Usage: node phase3-profile-score.mjs --batch-id <id>');
+    console.error('   or: node phase3-profile-score.mjs --input <raw.json> --criteria <criteria.json> [--output <out.json>] [--resume <partial.json>]');
     process.exit(1);
   }
   if (!opts.output) {
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    opts.output = resolve(SKILL_ROOT, `data/exports/phase3-${date}.json`);
+    console.error('[error] --output 缺失，且未提供 --batch-id 来推断');
+    process.exit(1);
   }
+  ensureDataDirs();
   return opts;
 }
 
