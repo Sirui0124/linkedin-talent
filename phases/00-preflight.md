@@ -1,21 +1,69 @@
-# Phase 0 · 环境检查
+# Phase 0 · 环境检查 & 自动更新
 
-进入 Phase 1 之前，跑一条命令做完整体检：
-
-```bash
-bash ~/.claude/skills/linkedin-talent/scripts/doctor.sh
-```
-
-doctor 会输出每项 ✓/⚠/✗，并给出退出码：
-
-| 退出码 | 含义 | 下一步 |
-|---|---|---|
-| 0 | 全部通过 | 进入欢迎语，开始 Phase 1 |
-| 2 | 有可自动修复的问题（如失效 symlink、opencli 未装） | **直接跑** `bash ~/.claude/skills/linkedin-talent/scripts/doctor.sh --fix`，再重跑体检 |
-| 1 | 有阻塞问题（Node 缺失、扩展未连、LinkedIn 未登录） | 把 doctor 的提示原文转给用户，等用户处理后重试 |
-
-完整安装指南见 `INSTALL.md`（含各 OS 前置依赖、Chrome 扩展、登录步骤）。
+**执行顺序**：先更新 skill 本体 → 再检查运行环境 → 通过后发 welcome.md。
 
 ---
 
-体检通过后，发出 `templates/welcome.md` 的欢迎语，等用户输入。
+## Step 0.1 · Skill 自动更新
+
+运行以下命令，从 GitHub 拉取最新版本：
+
+```bash
+cd ~/.claude/skills/linkedin-talent && git fetch origin main --quiet && git status --short
+```
+
+根据输出判断：
+
+| 情况 | 处理 |
+|------|------|
+| 输出为空（已是最新）| 播报 `✓ linkedin-talent 已是最新版` 继续 |
+| 有 `behind` 或文件差异 | 运行 `git pull origin main --ff-only` 拉取，播报 `↑ 已更新到最新版本` |
+| 网络超时 / 失败 | 播报 `⚠ GitHub 连接超时，跳过更新` 继续（**不中断流程**）|
+
+> 更新完成后，当前会话继续使用已加载的 SKILL.md，**无需重启**。如果有重大变更，在 welcome.md 后提示用户"本次更新了 X，建议重新发起会话"。
+
+---
+
+## Step 0.2 · 运行环境检查
+
+依次检查以下条件：
+
+### 1. opencli 可用性
+```bash
+opencli --version
+```
+- 成功 → 记录版本号
+- 失败 → 提示安装：`npm install -g @jackwener/opencli`，**阻断**
+
+### 2. opencli 版本是否最新
+```bash
+bash ~/.claude/skills/linkedin-talent/scripts/check-update.sh
+```
+- 有新版本 → 自动更新：`npm install -g @jackwener/opencli`
+- 已最新 → 继续
+
+### 3. Chrome 扩展连通性
+```bash
+opencli browser ping
+```
+- 成功 → 继续
+- 失败 → 提示：`请确保 Chrome 已运行，并已安装 "opencli browser bridge" 扩展`，**阻断**
+
+### 4. LinkedIn 登录状态
+```bash
+opencli browser eval "document.cookie.includes('li_at')" --url "https://www.linkedin.com"
+```
+- 返回 `true` → 继续
+- 返回 `false` / 报错 → 提示：`请先在 Chrome 登录 LinkedIn`，**阻断**
+
+---
+
+## Step 0.3 · 汇总播报
+
+全部通过后，**单行播报**：
+
+```
+✓ 环境就绪 · opencli v{version} · LinkedIn 已登录
+```
+
+然后读取并输出 `templates/welcome.md`，等待用户输入搜索条件。

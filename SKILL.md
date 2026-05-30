@@ -7,6 +7,19 @@ load: manual
 
 # LinkedIn 人才寻访
 
+## ⚡ 启动时必须先执行：自动更新
+
+**每次 skill 被调用，第一件事是拉取最新版本：**
+
+```bash
+cd ~/.claude/skills/linkedin-talent && git fetch origin main --quiet 2>/dev/null && git pull origin main --ff-only --quiet 2>/dev/null && echo "✓ 已是最新" || echo "⚠ 网络超时，跳过更新"
+```
+
+- 成功拉取 → 播报 `↑ linkedin-talent 已更新`（若有变更）或 `✓ 已是最新版`
+- 网络失败 → 播报 `⚠ GitHub 超时，跳过更新` 并**继续执行，不阻断**
+
+---
+
 完整链路 SOP，按 Phase 顺序执行，每个 Phase 都有独立 md 文档，本文件只做编排。
 
 ## 文件结构
@@ -14,64 +27,71 @@ load: manual
 ```
 linkedin-talent/
 ├── SKILL.md                            ← 本文件，编排
+├── package.json                        ← 声明 xlsx 依赖（首次安装跑 npm install）
 ├── phases/
-│   ├── 00-preflight.md                 环境检查
 │   ├── 01-parse-criteria.md            解析三层结构（搜索/硬筛/评分）
 │   ├── 015-confirm-templates.md        话术与课题确认
-│   ├── 02-search-recall.md             搜索召回（L1）
-│   ├── 03-filter-and-score.md          硬筛 + LLM 多维度评分（L2 + L3，subagent）
-│   ├── 04-export-excel.md              单批次 Excel + 话术生成
+│   ├── 02-search-recall.md             搜索召回播报与决策（实现在 lib/voyager.js）
+│   ├── 03-filter-and-score.md          L3 LLM 评分指令（L2/L2.5 实现在 phase3 mjs）
 │   ├── 05-review.md                    Review HTML + 解析剪贴板 JSON
-│   ├── 06-send-connect.md              发送 Connect
-│   └── 07-dashboard-sync.md            同步 Master Dashboard
+│   └── 07-dashboard-sync.md            同步 Master Dashboard（伪代码）
 ├── templates/
 │   ├── welcome.md                      开场欢迎语（4 步流程总览）
 │   ├── parse-mirror.md                 Phase 1.4 解析镜像渲染骨架
 │   ├── parse-mirror-example.md         完整示例（TSMC/Ruthenium）
 │   ├── confirm-1-5.md                  Phase 1.5 确认消息渲染骨架
-│   └── broadcast.md                    全程进度播报短句库
-├── data/                               📁 数据存储目录（新增）
-│   ├── batches/                        搜索结果 Excel 文件
-│   ├── decisions/                      用户决策 JSON 文件
-│   ├── exports/                        最终输出文件
-│   └── archive/                        归档文件
+│   ├── broadcast.md                    全程进度播报短句库
+│   └── review-dashboard.html           Phase 5 Review HTML 模板
 ├── lib/
-│   ├── config.js                       公司ID映射 / 搜索配置
-│   ├── voyager.js                      搜索/Profile/Connect 脚本模板
-│   ├── connect-templates.json          sender 身份 + 三种话术模板
+│   ├── paths.js                        ⭐ 路径单一来源（DATA_HOME / batchExcelPath / ...）
+│   ├── naming.js                       ⭐ batch_id 生成与解析
+│   ├── config.js                       公司ID映射 / 搜索配置 / 错误码
+│   ├── voyager.js                      搜索/Profile/Connect 脚本模板（含调用约定）
+│   ├── connect-templates.json          sender 身份 + 三种话术模板 + project_config
 │   ├── scoring-dimensions.json         L3 评分维度 schema + 示例
-│   ├── excel-schema.json               单批次 Excel 列定义
+│   ├── excel-schema.json               单批次 Excel 列契约（schema-check 校验）
 │   ├── dashboard-schema.json           Master Dashboard 列定义
-│   ├── data-manager.json               数据管理配置（新增）
 │   └── safety.json                     间隔 / 阈值 / 错误码
 └── scripts/
     ├── install-complete.sh             跨平台一键完整安装
-    ├── doctor.sh                       环境检查和故障排除
-    ├── data-manager.sh                 数据文件管理工具（新增）
+    ├── doctor.sh                       环境检查和故障排除（Phase 0）
+    ├── data-manager.sh                 数据文件管理工具
+    ├── schema-check.mjs                Excel schema 与 phase4 实现一致性校验
+    ├── phase3-profile-score.mjs        Phase 3 实现：硬筛 + 规则评分
+    ├── phase4-export-excel.mjs         Phase 4 实现：Excel + Review HTML
     └── check-update.sh                 版本检查
 ```
+
+数据落盘到 `~/.linkedin-talent/`（详见 `lib/paths.js`），不再放在 skill 目录内。
 
 ## 执行顺序与停顿点
 
 每个 Phase 都有独立 md，按顺序读取并执行。⏸ 标志表示**必须等用户确认才继续**。
 
 ```
-Phase 0 · 环境检查        → phases/00-preflight.md
-   ↓ 通过后发 templates/welcome.md，等用户输入
+Phase 0 · 环境检查        → bash scripts/doctor.sh
+   ↓ 退出码:
+   ↓   0 = 全部通过  → 发 templates/welcome.md，等用户输入
+   ↓   2 = 可自动修复 → 跑 scripts/doctor.sh --fix 后重检
+   ↓   1 = 阻塞     → 把 doctor 的提示原文转给用户
 Phase 1 · 解析三层结构      → phases/01-parse-criteria.md
    ↓ 输出 templates/parse-mirror.md 骨架（参考 parse-mirror-example.md）
    ⏸ 等用户回 "确认"
 Phase 1.5 · 话术确认        → phases/015-confirm-templates.md
    ↓ 输出 templates/confirm-1-5.md 骨架
    ⏸ 等用户回 "确认"
-Phase 2 · 搜索召回         → phases/02-search-recall.md
-Phase 3 · Profile + 评分    → phases/03-filter-and-score.md（≥50 启 subagent）
-Phase 4 · Excel + 话术      → phases/04-export-excel.md
+Phase 2 · 搜索召回         → phases/02-search-recall.md（调用 lib/voyager.js searchCandidatesScript）
+Phase 3 · Profile + 评分    → bash: node scripts/phase3-profile-score.mjs --batch-id <id>
+   · L2 硬筛 + L2.5 规则评分均在 mjs 中实现；
+   · ≥50 人触发 subagent 跑 L3 LLM 评分，prompt 与 JSON 契约见 phases/03-filter-and-score.md
+Phase 4 · Excel + 话术      → bash: node scripts/phase4-export-excel.mjs --batch-id <id>
+   · 列契约见 lib/excel-schema.json；话术模板见 lib/connect-templates.json
 Phase 5 · Review HTML      → phases/05-review.md
-   ↓ 自动 open Review 页
+   ↓ 自动 open Review 页（phase4 已生成 HTML）
    ⏸ 等用户粘贴 decisions JSON
-Phase 6 · 发送 Connect      → phases/06-send-connect.md
-Phase 7 · Dashboard 同步    → phases/07-dashboard-sync.md
+Phase 6 · 发送 Connect      → 直接调 lib/voyager.js 的 sendConnectScript + parseConnectResult
+   · 间隔 6-10s、错误码处理详见 lib/voyager.js 与 lib/safety.json
+Phase 7 · Dashboard 同步    → phases/07-dashboard-sync.md（伪代码）
    ↓ 输出最终统计
 ```
 
