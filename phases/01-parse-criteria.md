@@ -75,10 +75,16 @@ priority 严格按用户文本顺序。"其他公司也可考虑" → `allow_oth
 **关键改动 vs 旧版**：把 `soft_criteria`（一段自然语言）拆成 3-5 个维度，每维度独立打分 0-100，加权得总分。便于查看每人在哪个维度强/弱，以及未来调整权重。
 
 参考 `lib/scoring-dimensions.json` 的 schema 与示例：
-- `company_match` / `topic_depth` / `seniority_focus` 是常见三个维度
+- `company_match` / `topic_depth` / `target_role_duration` 是岗位寻访默认三维
 - 加分维度（`bonus`）建议权重 ≤ 0.15
 - 权重之和必须为 1.0（解析时校验，否则归一化）
 - 维度命名直接抄录用户原文中的"理想画像"段落，不要 Claude 自行扩充
+
+**默认评分原则（非常重要）**：
+- L2 硬筛只判断"有没有命中"，L3/L2.5 排序必须判断"命中质量"。
+- 当用户只给了公司 + 岗位（例如"阿里巴巴 Data Analyst"），不要用"可触达度"这类模糊维度填空；默认第三项必须是 `target_role_duration`（目标公司 + 目标岗位累计时长），建议权重 0.35-0.50。
+- 目标公司/岗位刚开始、只有当年经历、短期实习、起止年缺失，都要在 `target_role_duration` 降权；不能因为公司和 title 命中就给高总分。
+- `reasoning` 和 `highlight_for_outreach` 应优先引用目标公司/目标岗位那段经历；若 Profile 第一段是其他公司/岗位，只能作为"当前展示"补充说明。
 
 ### `recent_departure_months`
 "近 6 个月"/"近半年"/"recent" → 6；"近 1 年" → 12；"近 18 个月" → 18。

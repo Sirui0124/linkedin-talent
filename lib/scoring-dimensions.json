@@ -17,6 +17,26 @@
     "25": "弱匹配，沾边",
     "0": "完全不沾"
   },
+  "core_principles": [
+    "评分必须区分“是否命中”和“命中质量”：L2 硬筛只判断 yes/no，L3/L2.5 排序必须看深度、时长、当前性、资历和证据强弱。",
+    "目标公司 + 目标岗位的累计时长是默认核心维度。只在目标公司目标岗待了很短时间、刚入职、只有实习或起止年缺失的人，不应因为公司和 title 命中就拿高分。",
+    "reasoning 和 highlight_for_outreach 应优先引用最相关的目标公司/目标岗位经历，而不是 Profile 第一段经历；如果当前展示职位不同，要在 reasoning 里说明。",
+    "当用户没有给更细软条件时，默认维度应为：公司匹配、岗位/课题匹配、目标岗时长。不要用模糊的“可触达度”替代核心匹配项。"
+  ],
+  "default_dimensions_for_role_search": [
+    {"key": "company_match", "label": "公司匹配", "description": "是否有目标公司经历；现任或近期相关经历优先，历史短暂经历次之", "weight": 0.25},
+    {"key": "topic_depth", "label": "岗位匹配", "description": "title、经历描述、技能是否明确对应目标岗位/目标职能", "weight": 0.30},
+    {"key": "target_role_duration", "label": "目标岗时长", "description": "在目标公司 + 目标岗位/相关职能上的累计时长；短期、刚入职、实习、起止年缺失要降权", "weight": 0.45}
+  ],
+  "target_role_duration_scoring": {
+    "100": "累计 >=5 年",
+    "85": "累计 >=3 年且 <5 年",
+    "70": "累计 >=2 年且 <3 年",
+    "45": "累计 >=1 年且 <2 年",
+    "25": "累计不足 1 年但有明确起止时间",
+    "40": "命中目标公司/目标岗但缺少 startYear，保守给中低分并保留人工复核",
+    "0": "无可计算目标岗时长，或只显示未来/当年刚开始"
+  },
   "final_score_formula": "round(sum(scores[k] * weights[k]) for k in dimensions)",
   "tier_from_final_score": {
     "tier1": ">=75",
@@ -30,7 +50,7 @@
       "dimensions": [
         {"key": "company_match",    "label": "公司匹配",       "description": "是否在 TSMC/Intel 现任或近期前任，且参与 BEOL/互连相关团队", "weight": 0.30},
         {"key": "topic_depth",       "label": "课题深度",       "description": "是否能就 Ruthenium 替代铜的具体技术（配方/良率/量产/用量）发言", "weight": 0.30},
-        {"key": "seniority_focus",   "label": "资历与聚焦度",   "description": "是否 ≥5 年经验，且至少 2 年集中在 2nm/先进节点 BEOL 工序", "weight": 0.25},
+        {"key": "target_role_duration", "label": "目标方向时长", "description": "在目标公司/目标方向上的累计投入时长；短期或刚开始的经历降权", "weight": 0.25},
         {"key": "bonus",             "label": "加分项",          "description": "imec/AMAT/Lam/TEL 经历、Ruthenium/Co replacement 论文、staff 以上 title", "weight": 0.15}
       ]
     },
@@ -39,7 +59,7 @@
       "dimensions": [
         {"key": "company_match",    "label": "公司匹配",       "description": "腾讯/IEG 现任或近期前任，且在出海/海外发行/SLG 相关业务", "weight": 0.30},
         {"key": "topic_depth",       "label": "课题深度",       "description": "能就具体出海策略（市场进入、本地化、用户获取、监管应对）发言", "weight": 0.35},
-        {"key": "seniority_focus",   "label": "资历与聚焦度",   "description": "≥5 年游戏行业经验，≥3 年聚焦海外市场或出海项目", "weight": 0.25},
+        {"key": "target_role_duration", "label": "目标方向时长", "description": "在目标公司/目标业务方向上的累计投入时长；短期或刚开始的经历降权", "weight": 0.25},
         {"key": "bonus",             "label": "加分项",          "description": "字节 Nuverse/网易雷火 海外岗经历、独立 P1+ 项目主理人、海外 publishing 主导", "weight": 0.10}
       ]
     }
@@ -47,7 +67,7 @@
   "constraints": {
     "max_dimensions": 5,
     "min_dimensions": 3,
-    "must_include": "company_match (或语义等价物) — 即便 hard_filters 已限制，评分时也要回看公司维度，否则其他维度无法横向比较",
+    "must_include": "company_match + topic_depth/role_match + target_role_duration（或语义等价物）。即便 hard_filters 已限制，评分时也要回看公司、岗位和目标岗时长，否则会把刚入职/短期经历错排到高位",
     "weights_sum_check": "解析后必须校验 weights 之和=1.0±0.01，否则归一化"
   }
 }

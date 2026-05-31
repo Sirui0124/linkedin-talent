@@ -10,7 +10,7 @@
         {"col": "A", "header": "序号",                    "field": "row_index"},
         {"col": "B", "header": "Tier",                    "field": "tier_with_stars",        "format": "<tier> ⭐⭐⭐|⭐⭐|⭐"},
         {"col": "C", "header": "总分",                    "field": "score"},
-        {"col": "D", "header": "分项评分",                 "field": "scores_breakdown_str",    "format": "公司:90 / 课题:75 / 资历:80 / 加分:50"},
+        {"col": "D", "header": "分项评分",                 "field": "scores_breakdown_str",    "format": "公司:90 / 岗位:75 / 目标岗时长:80 / 加分:50"},
         {"col": "E", "header": "姓名",                    "field": "name"},
         {"col": "F", "header": "当前职位",                 "field": "current_title"},
         {"col": "G", "header": "当前公司",                 "field": "current_company"},

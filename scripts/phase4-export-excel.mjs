@@ -177,7 +177,8 @@ function buildConnectMsg(c, opts) {
 // ── Sheet 1: Passed candidates ────────────────────────────────────────────────
 function buildPassedRows(passed, opts, criteria) {
   const TARGET_COS = (criteria?.hard_filters?.any_of_companies || ['tsmc', 'intel', '台积电', '英特尔'])
-    .map(c => c.toLowerCase());
+    .map(c => (typeof c === 'string' ? c : c?.name || '').toLowerCase())
+    .filter(Boolean);
 
   function targetExp(positions) {
     return (positions || [])
@@ -196,7 +197,14 @@ function buildPassedRows(passed, opts, criteria) {
     return (educations || []).map(e => [e.school, e.degree, e.field].filter(Boolean).join(' · ')).join('\n') || '—';
   }
   function dimScores(sb) {
-    const labels = { company_match: '公司', topic_depth: '课题', seniority_focus: '资历', bonus: '加分' };
+    const labels = {
+      company_match: '公司',
+      topic_depth: '岗位',
+      seniority_focus: '目标岗时长',
+      target_role_duration: '目标岗时长',
+      target_company_role_duration: '目标岗时长',
+      bonus: '加分',
+    };
     return (sb || []).map(d => `${labels[d.key] || d.key}:${d.score}`).join(' / ');
   }
   function tierLabel(t) { return t === 1 ? '⭐⭐⭐' : t === 2 ? '⭐⭐' : t === 3 ? '⭐' : '-'; }

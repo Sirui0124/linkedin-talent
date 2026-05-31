@@ -216,7 +216,7 @@ async function loadExcel(event) {
   const col = {};
   header.forEach((h, i) => { if (h) col[String(h).trim()] = i; });
 
-  const dimMap = { '公司': 'company_match', '课题': 'topic_depth', '资历': 'stem_background', '加分': 'bonus' };
+  const dimMap = { '公司': 'company_match', '课题': 'topic_depth', '岗位': 'topic_depth', '资历': 'seniority_focus', '目标岗时长': 'target_role_duration', '加分': 'bonus' };
   const parseScores = (str) => String(str || '').split(' / ').map(seg => {
     const [k, v] = seg.split(':');
     const key = dimMap[k?.trim()] || k?.trim();
@@ -331,7 +331,7 @@ function selectCandidate(vanity) {
 
   // Score inline
   const dims = c.scores_breakdown || [];
-  const dimLabels = { company_match: '公司', topic_depth: '课题', seniority_focus: '资历', stem_background: '资历', bonus: '加分' };
+  const dimLabels = { company_match: '公司', topic_depth: '岗位', seniority_focus: '目标岗时长', target_role_duration: '目标岗时长', target_company_role_duration: '目标岗时长', stem_background: '资历', bonus: '加分' };
   const scoreHtml = dims.map((dim, i) => {
     const lbl = dimLabels[dim.key] || dim.key;
     const sc = dim.score ?? 0;

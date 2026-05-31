@@ -124,11 +124,80 @@ function fuzzyMatch(target, actual) {
   return a.includes(t) || t.includes(a);
 }
 
+function matchesAnyCompany(company, targetCos) {
+  return targetCos.some(c => {
+    const name = typeof c === 'string' ? c : c?.name;
+    return fuzzyMatch(name, company || '');
+  });
+}
+
+function findTargetPosition(profile, criteria) {
+  const positions = profile.positions || [];
+  const targetCos = criteria.hard_filters?.any_of_companies || [];
+  const titleKws = criteria.hard_filters?.title_must_match_any || [];
+  const currentYear = new Date().getFullYear();
+
+  const targetPositions = positions.filter(p => matchesAnyCompany(p.company, targetCos));
+  const roleMatches = targetPositions.filter(p =>
+    !titleKws.length || titleKws.some(kw => fuzzyMatch(kw, p.title || ''))
+  );
+  const pool = roleMatches.length ? roleMatches : targetPositions;
+  if (!pool.length) return null;
+
+  return pool
+    .slice()
+    .sort((a, b) => {
+      const aActive = !a.endYear || a.endYear >= currentYear;
+      const bActive = !b.endYear || b.endYear >= currentYear;
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return (b.startYear || 0) - (a.startYear || 0);
+    })[0];
+}
+
+function findTargetRolePositions(profile, criteria) {
+  const positions = profile.positions || [];
+  const targetCos = criteria.hard_filters?.any_of_companies || [];
+  const titleKws = criteria.hard_filters?.title_must_match_any || [];
+
+  const targetPositions = positions.filter(p => matchesAnyCompany(p.company, targetCos));
+  const roleMatches = targetPositions.filter(p =>
+    !titleKws.length || titleKws.some(kw => fuzzyMatch(kw, p.title || ''))
+  );
+  return roleMatches.length ? roleMatches : targetPositions;
+}
+
+function targetRoleDuration(profile, criteria) {
+  const currentYear = new Date().getFullYear();
+  const positions = findTargetRolePositions(profile, criteria);
+  let years = 0;
+  let hasUnknownStart = false;
+
+  for (const p of positions) {
+    if (!p.startYear) {
+      hasUnknownStart = true;
+      continue;
+    }
+    years += Math.max(0, (p.endYear || currentYear) - p.startYear);
+  }
+
+  return { years, hasUnknownStart };
+}
+
+function targetRoleDurationScore(profile, criteria) {
+  const { years, hasUnknownStart } = targetRoleDuration(profile, criteria);
+  if (years >= 5) return 100;
+  if (years >= 3) return 85;
+  if (years >= 2) return 70;
+  if (years >= 1) return 45;
+  if (years > 0) return 25;
+  return hasUnknownStart ? 40 : 0;
+}
+
 function hardFilter(profile, filters) {
   // 公司匹配（宽松：只要任一职位含目标公司即通过）
   if (filters.any_of_companies?.length) {
     const allCos = (profile.positions || []).map(p => p.company || '');
-    const hit = filters.any_of_companies.some(tc => allCos.some(co => fuzzyMatch(tc, co)));
+    const hit = allCos.some(co => matchesAnyCompany(co, filters.any_of_companies));
     if (!hit) return { pass: false, reason: '无任何目标公司经历' };
   }
   // 必含关键词（至少命中 1 个）
@@ -159,14 +228,16 @@ function ruleScore(profile, criteria) {
   const targetCos = criteria.hard_filters?.any_of_companies || [];
   const kwList = criteria.hard_filters?.must_have_any_kw || [];
   const text = buildProfileText(profile).toLowerCase();
-  const currentCo = profile.positions?.[0]?.company || '';
+  const targetPosition = findTargetPosition(profile, criteria);
+  const currentCo = targetPosition?.company || profile.positions?.[0]?.company || '';
   const allCos = (profile.positions || []).map(p => p.company || '');
   const currentYear = new Date().getFullYear();
 
   const scores = dims.map(d => {
     switch (d.key) {
       case 'company_match': {
-        if (targetCos.some(c => fuzzyMatch(c, currentCo))) return 100;
+        if (targetPosition && (!targetPosition.endYear || targetPosition.endYear >= currentYear)) return 100;
+        if (targetPosition) return 80;
         if (targetCos.some(c => allCos.some(co => fuzzyMatch(c, co)))) return 70;
         return 20;
       }
@@ -174,11 +245,10 @@ function ruleScore(profile, criteria) {
         const hitCount = kwList.filter(kw => text.includes(kw.toLowerCase())).length;
         return Math.round((hitCount / Math.max(kwList.length, 1)) * 100);
       }
-      case 'seniority_focus': {
-        const focusYears = (profile.positions || [])
-          .filter(p => targetCos.some(c => fuzzyMatch(c, p.company || '')))
-          .reduce((sum, p) => sum + ((p.endYear || currentYear) - (p.startYear || currentYear)), 0);
-        return Math.min(100, Math.max(0, focusYears * 15));
+      case 'seniority_focus':
+      case 'target_role_duration':
+      case 'target_company_role_duration': {
+        return targetRoleDurationScore(profile, criteria);
       }
       case 'bonus': {
         const bonusKws = d.bonus_keywords || [];
@@ -194,14 +264,20 @@ function ruleScore(profile, criteria) {
   return { dimScores: scores, score: total };
 }
 
-function ruleReasoning(profile, dimScores, dims, targetCos) {
+function ruleReasoning(profile, dimScores, dims, criteria) {
+  const targetPosition = findTargetPosition(profile, criteria);
   const currentCo = profile.positions?.[0]?.company || '未知公司';
   const currentTitle = profile.positions?.[0]?.title || '未知职位';
+  const reasonCo = targetPosition?.company || currentCo;
+  const reasonTitle = targetPosition?.title || currentTitle;
   const topDim = dims[dimScores.indexOf(Math.max(...dimScores))];
   const botDim = dims[dimScores.indexOf(Math.min(...dimScores))];
+  const currentNote = targetPosition && (targetPosition.company !== currentCo || targetPosition.title !== currentTitle)
+    ? `；当前展示为 ${currentCo} ${currentTitle}`
+    : '';
   return {
-    reasoning: `${currentCo} ${currentTitle}，${topDim?.label || ''}高匹配`,
-    highlight_for_outreach: `Your background at ${currentCo} is exactly what we're looking for —`,
+    reasoning: `${reasonCo} ${reasonTitle}，${topDim?.label || ''}高匹配${currentNote}`,
+    highlight_for_outreach: `Your background at ${reasonCo} is exactly what we're looking for —`,
     matched_signals: dims.filter((_, i) => dimScores[i] >= 70).map(d => d.label),
     missed_signals: dims.filter((_, i) => dimScores[i] < 50).map(d => d.label),
   };
@@ -306,7 +382,7 @@ async function main() {
     // L2.5 规则评分
     const { dimScores, score } = ruleScore(profile, criteria);
     const tier = score >= 75 ? 1 : score >= 50 ? 2 : score >= 30 ? 3 : 0;
-    const rr = ruleReasoning(profile, dimScores, criteria.scoring_dimensions, criteria.hard_filters?.any_of_companies || []);
+    const rr = ruleReasoning(profile, dimScores, criteria.scoring_dimensions, criteria);
 
     const scores_breakdown = criteria.scoring_dimensions.map((d, i) => ({ key: d.key, score: dimScores[i] }));
     const candidate = {

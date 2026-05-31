@@ -6,7 +6,7 @@ mjs 已实现：
 - **3.0 预筛**（无 API，基于 headline + hits）—— `preFilter()`
 - **3.0b Profile 拉取**（间隔由 `humanDelay()` 控制，模拟人类停顿）—— `getProfileScript()`
 - **3.1 L2 硬筛**（公司 / 必含词 / 排除词 / title 模糊匹配，全部 AND，宽松策略）—— `hardFilter()`
-- **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `seniority_focus` / `bonus`）—— `ruleScore()`
+- **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `target_role_duration`/`seniority_focus` / `bonus`）—— `ruleScore()`
 - **断点续跑** `--resume <partial.json>`、定期写中间结果（每 10 人）
 - **错误码**：401/403/429 → 整批立即停止；其他非 200 仅丢弃单人
 
@@ -30,6 +30,12 @@ mjs 已实现：
 【单维度评分参考】
 100 = 完美匹配（头部）；75 = 明显匹配；50 = 部分匹配；25 = 弱匹配；0 = 完全不沾
 
+【核心排序原则】
+- 硬筛命中不等于高分。L2 已确认"有目标公司/岗位信号"后，L3 必须继续判断命中质量。
+- 岗位寻访默认必须评估目标公司 + 目标岗位累计时长（`target_role_duration` 或语义等价物）。
+- 目标岗时长短、刚入职、仅实习、起止年缺失，应降权；不能因为 company_match 和 topic_depth 都命中就直接给高总分。
+- reasoning / highlight_for_outreach 优先引用最相关的目标公司目标岗位经历，不要默认取第一段当前经历。
+
 【候选人 Profile】
 姓名：{firstName} {lastName}
 当前职位：{current_title} @ {current_company}
@@ -44,7 +50,7 @@ mjs 已实现：
   "scores_breakdown": [
     {"key": "company_match",  "score": 90},
     {"key": "topic_depth",    "score": 75},
-    {"key": "seniority_focus", "score": 80},
+    {"key": "target_role_duration", "score": 80},
     {"key": "bonus",           "score": 50}
   ],
   "score": <round(weighted_sum)>,    // 由 scores_breakdown × weights 加权得到
@@ -59,9 +65,25 @@ mjs 已实现：
 ### 关键约束
 
 - 评分必须严格基于用户原文定义的 `scoring_dimensions`，不要 Claude 自行扩充维度
-- `scores_breakdown` 数组顺序与 `scoring_dimensions` 一致；Excel D 列把它渲染为 `公司:90 / 课题:75 / 资历:80 / 加分:50`
+- `scores_breakdown` 数组顺序与 `scoring_dimensions` 一致；Excel D 列把它渲染为 `公司:90 / 岗位:75 / 目标岗时长:80 / 加分:50`
 - `highlight_for_outreach` 直接复用到 Phase 4 的 `{highlight}` 变量，避免双重生成
 - Profile 异常残缺 → score=null，对应"待人工核验"
+
+## 目标岗时长评分口径
+
+用于岗位寻访、公司岗位组合寻访（例如 Alibaba Data Analyst、Tencent Overseas Publishing、TSMC BEOL Engineer）。
+
+```text
+目标岗时长 = sum(经历中同时命中 target company 和 target role/title 的年限)
+
+100: >=5 年
+85 : >=3 年且 <5 年
+70 : >=2 年且 <3 年
+45 : >=1 年且 <2 年
+25 : <1 年但有明确起止时间
+40 : 命中目标公司/目标岗但缺少 startYear，保守中低分并待人工复核
+0  : 无可计算目标岗时长，或只显示未来/当年刚开始
+```
 
 ## Subagent 模式（≥50 人触发）
 
