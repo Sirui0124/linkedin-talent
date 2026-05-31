@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>LinkedIn Review · __BATCH_ID__</title>
+<title>LinkedIn Review</title>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -154,7 +154,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     📂 加载 Excel
     <input type="file" accept=".xlsx" style="display:none" onchange="loadExcel(event)">
   </label>
-  <span class="meta">__BATCH_ID__ · __TOPIC__ · 共 <strong>__TOTAL__</strong> 人</span>
+  <a class="btn-sm" href="../data/batches/" title="默认 Excel 目录">打开默认目录</a>
+  <span class="meta" id="dashboard-meta">默认目录 data/batches · 请选择 Excel · 共 <strong>0</strong> 人</span>
   <div id="topbar-actions">
     <button class="btn-sm" onclick="markAll('connect')">全部建联</button>
     <button class="btn-sm" onclick="clearAll()">清除标记</button>
@@ -191,8 +192,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast"></div>
 
 <script>
-const CANDIDATES = __CANDIDATES_JSON__;
-const BATCH_META = __BATCH_META_JSON__;
+let CANDIDATES = [];
+let BATCH_META = {};
+try { CANDIDATES = __CANDIDATES_JSON__; } catch {}
+try { BATCH_META = __BATCH_META_JSON__; } catch {}
 
 const decisions = {};
 let currentVanity = null;
@@ -274,7 +277,7 @@ async function loadExcel(event) {
   document.getElementById('detail').className = 'empty';
   document.getElementById('detail').innerHTML = '← 从左侧选择候选人';
   // Update topbar meta
-  document.querySelector('#topbar .meta strong').textContent = loaded.length;
+  document.getElementById('dashboard-meta').innerHTML = `${esc(file.name)} · 共 <strong>${loaded.length}</strong> 人`;
   renderList();
   showToast(`已加载「${file.name}」· ${loaded.length} 位候选人`);
   event.target.value = '';

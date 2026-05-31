@@ -2,7 +2,7 @@
 
 **目标**：用最少的 API 调用把候选池缩到 ~150-250 人。命中率优先于覆盖率，覆盖由 L2 硬筛 + L3 评分弥补。
 
-**执行**：Claude 按下方调用矩阵编排，逐次调用 `lib/voyager.js` 的 `searchCandidatesScript()`，结果累计到 `~/.linkedin-talent/exports/raw_<batch_id>.json`。
+**执行**：Claude 按下方调用矩阵编排，逐次调用 `lib/voyager.js` 的 `searchCandidatesScript()`，结果累计到 `data/exports/raw_<batch_id>.json`。
 
 **实施细节** — CSRF 转义、companyFilter 格式、错误码处理在 `lib/voyager.js` 函数注释里；间隔与停止阈值在 `lib/safety.json`。本文件只描述**调用编排逻辑**与**播报话术**。
 

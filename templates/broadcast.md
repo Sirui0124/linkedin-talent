@@ -89,6 +89,6 @@ Phase 2 全程都用这个文案风格：动词 + 具体数字 + 一句轻松短
 ```
 ✅ 全部发完：成功 {R} / CANT_RESEND {S} / 失败 {T}
    单批次 Excel 已更新 N 列
-   已同步到 master dashboard：~/.linkedin-talent/dashboard.xlsx
+   已同步到 master dashboard：data/dashboard.xlsx
    · 候选人库累计 {X} 人（本次新增 {Y} / 复现 {Z}）
 ```

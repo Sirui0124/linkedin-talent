@@ -1,7 +1,3 @@
 .DS_Store
 node_modules/
-data/batches/
-data/decisions/
-data/exports/
-data/archive/
-data/criteria/
+data/

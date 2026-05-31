@@ -8,15 +8,15 @@
  *
  *   显式参数（高级用法）:
  *   node phase4-export-excel.mjs \
- *     --input    ~/.linkedin-talent/exports/phase3_<id>.json \
- *     --criteria ~/.linkedin-talent/criteria/<id>.json \
- *     [--output  ~/.linkedin-talent/batches/linkedin_<id>.xlsx] \
+ *     --input    data/exports/phase3_<id>.json \
+ *     --criteria data/criteria/<id>.json \
+ *     [--output  data/batches/linkedin_<id>.xlsx] \
  *     [--sender "Zadie"] [--rate "$300-800/hr"] [--company "Funda.ai"]
  *     [--topic "<研究课题>"]
  *
- * ── 输出三件套 ─────────────────────────────────────────────────────────────
+ * ── 输出 ─────────────────────────────────────────────────────────────────
  *   1. <output>.xlsx                Excel 三 Sheet：候选人 / 淘汰名单 / 统计
- *   2. <output>-review.html         Phase 5 Review 页面（自动 open）
+ *   2. 固定 Review Dashboard         templates/review-dashboard.html（自动 open，用户载入 Excel）
  *   3. (criteria/decisions 等保持原位，本脚本不动)
  *
  * ── Excel 列契约 ──────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { createRequire } from 'module';
 import {
-  SKILL_ROOT, criteriaPath, phase3JsonPath, batchExcelPath, reviewHtmlPath,
+  SKILL_ROOT, criteriaPath, phase3JsonPath, batchExcelPath,
   ensureDataDirs,
 } from '../lib/paths.js';
 import { isValidBatchId, buildBatchId, parseBatchId } from '../lib/naming.js';
@@ -318,52 +318,14 @@ async function main() {
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
   writeFileSync(opts.output, Buffer.from(buf));
 
-  // ── Generate dashboard HTML ───────────────────────────────────────────────
-  const htmlPath = reviewHtmlPath(opts.batchId);
+  // ── Open fixed dashboard template ─────────────────────────────────────────
   const tplPath = resolve(SKILL_ROOT, 'templates/review-dashboard.html');
   if (!existsSync(tplPath)) {
     console.error(`[error] Dashboard 模板不存在: ${tplPath}`);
     process.exit(1);
   }
-  {
-    const batchId = opts.batchId;
-    const batchMeta = {
-      batch_id: batchId,
-      topic: opts.topic,
-      companies: criteria?.hard_filters?.any_of_companies || [],
-      target_companies: criteria?.hard_filters?.any_of_companies || [],
-    };
-
-    // Enrich candidates with positions parsed from experience_history
-    const enriched = passed.map(c => {
-      let positions = c.positions || [];
-      if (!positions.length && c.experience_history) {
-        positions = c.experience_history.split('; ').map(s => {
-          const parts = s.split(' | ');
-          const [company, title, yr] = parts;
-          const [sy, ey] = (yr || '').split('-');
-          return { company, title, startYear: parseInt(sy)||null, endYear: ey==='now'?null:parseInt(ey)||null };
-        });
-      }
-      return {
-        ...c,
-        positions,
-        connect_message: buildConnectMsg(c, opts),
-      };
-    });
-
-    let html = readFileSync(tplPath, 'utf8');
-    html = html
-      .replace('__BATCH_ID__', batchId)
-      .replace('__TOPIC__', opts.topic || '')
-      .replace('__COMPANIES__', (batchMeta.companies || []).join(' / '))
-      .replace('__TOTAL__', enriched.length)
-      .replace('__CANDIDATES_JSON__', JSON.stringify(enriched))
-      .replace('__BATCH_META_JSON__', JSON.stringify(batchMeta));
-    writeFileSync(htmlPath, html);
-    console.log(`✓ Dashboard  : ${htmlPath}`);
-    execSync(`open "${htmlPath}"`);
-  }
+  console.log(`✓ Dashboard  : ${tplPath}`);
+  execSync(`open "${tplPath}"`);
 
   console.log(`✓ Excel      : ${opts.output}`);
   console.log(`  候选人 ${passed.length} 行 (T1:${t1} T2:${t2} T3:${t3}) | 淘汰 ${failed.length} 行`);

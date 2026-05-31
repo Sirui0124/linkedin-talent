@@ -4,13 +4,12 @@
 
 ### 1. 数据目录结构
 
-数据落到用户主目录 `~/.linkedin-talent/`（不再混入 skill 包），路径在 `lib/paths.js` 单点声明：
+数据落到 skill 目录内的 `data/`，路径在 `lib/paths.js` 单点声明，并由 `.gitignore` 排除，不同步到 GitHub：
 
 ```
-~/.linkedin-talent/
+data/
 ├── dashboard.xlsx                              ← master dashboard（跨批次累计）
 ├── batches/   linkedin_<batchId>.xlsx          ← 单批次结果 Excel
-├── batches/   linkedin_<batchId>-review.html   ← 配套 Review 页
 ├── criteria/  <batchId>.json                   ← Phase 1 解析后的标准
 ├── exports/   raw_<batchId>.json               ← Phase 2 召回原始数据
 ├── exports/   phase3_<batchId>.json            ← Phase 3 评分结果
@@ -26,7 +25,6 @@
   - 示例：`search_20260530_1314` / `search_20260530_1314_BEOL`
 - 派生文件名：
   - 单批次 Excel：`linkedin_<batchId>.xlsx`
-  - Review HTML： `linkedin_<batchId>-review.html`
   - 评分结果：    `phase3_<batchId>.json`
   - 用户决策：    `decisions_<batchId>.json`
   - 原始召回：    `raw_<batchId>.json`
@@ -41,13 +39,13 @@
 
 ### 4. Master Dashboard
 
-跨批次累计写入 `~/.linkedin-talent/dashboard.xlsx`（首次运行自动创建空模板，含 Sheet1 候选人库 + Sheet2 批次索引）。完整列定义见 `lib/dashboard-schema.json`。
+跨批次累计写入 `data/dashboard.xlsx`（首次运行自动创建空模板，含 Sheet1 候选人库 + Sheet2 批次索引）。完整列定义见 `lib/dashboard-schema.json`。
 
 合并伪代码见 `phases/07-dashboard-sync.md`。
 
 ## 🎯 核心特性
 
-- **数据与 skill 包分离**：`~/.linkedin-talent/` 不会被 git 追踪，且可以通过环境变量 `LINKEDIN_TALENT_HOME` 重定向
+- **数据不进 GitHub**：`data/` 位于 skill 包内，方便 Dashboard 默认打开；同时被 `.gitignore` 排除，不会被 git 追踪。也可以通过环境变量 `LINKEDIN_TALENT_HOME` 重定向。
 - **路径单一来源**：所有路径在 `lib/paths.js`；批次命名在 `lib/naming.js`；Excel 列契约在 `lib/excel-schema.json`（`schema-check.mjs` 守护）
 - **状态追踪**：通过 `decisions/decisions_<batchId>.json` 是否存在判断批次状态（Draft / Ready）
 - **跨平台**：`stat` 命令在 macOS / Linux 上行为不同，data-manager.sh 已做兼容处理
@@ -65,7 +63,7 @@ bash scripts/data-manager.sh archive 90
 bash scripts/data-manager.sh check
 
 # 自定义数据根目录（多账号场景）
-LINKEDIN_TALENT_HOME=~/.linkedin-talent-alt bash scripts/data-manager.sh list
+LINKEDIN_TALENT_HOME=data-alt bash scripts/data-manager.sh list
 ```
 
 ## 🔧 配置文件

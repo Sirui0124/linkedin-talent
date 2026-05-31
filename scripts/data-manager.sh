@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 #
 # LinkedIn Talent Data Manager
-# 管理 ~/.linkedin-talent/ 下的批次文件：列出、归档、命名检查
+# 管理 data/ 下的批次文件：列出、归档、命名检查
 #
 # 数据布局（与 lib/paths.js 一致）：
-#   ~/.linkedin-talent/
+#   data/
 #     ├── dashboard.xlsx
 #     ├── batches/   linkedin_<batchId>.xlsx
-#     ├── batches/   linkedin_<batchId>-review.html
 #     ├── criteria/  <batchId>.json
 #     ├── exports/   raw_<batchId>.json / phase3_<batchId>.json
 #     ├── decisions/ decisions_<batchId>.json
@@ -15,7 +14,9 @@
 
 set -euo pipefail
 
-DATA_HOME="${LINKEDIN_TALENT_HOME:-$HOME/.linkedin-talent}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DATA_HOME="${LINKEDIN_TALENT_HOME:-$SKILL_ROOT/data}"
 BATCHES_DIR="$DATA_HOME/batches"
 DECISIONS_DIR="$DATA_HOME/decisions"
 ARCHIVE_DIR="$DATA_HOME/archive"
@@ -48,7 +49,8 @@ get_file_size() {
     if [[ "$file" == *.xlsx ]]; then
         local count
         count=$(unzip -p "$file" xl/sharedStrings.xml 2>/dev/null \
-                | grep -o '<si>' | wc -l | tr -d ' ' || echo "0")
+                | grep -o '<si>' | wc -l | awk '{print $1}' || true)
+        [[ "$count" =~ ^[0-9]+$ ]] || count=0
         [[ $count -gt 0 ]] && echo "~$count" || echo "?"
     else
         echo "?"

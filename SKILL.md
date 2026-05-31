@@ -58,11 +58,11 @@ linkedin-talent/
     ├── data-manager.sh                 数据文件管理工具
     ├── schema-check.mjs                Excel schema 与 phase4 实现一致性校验
     ├── phase3-profile-score.mjs        Phase 3 实现：硬筛 + 规则评分
-    ├── phase4-export-excel.mjs         Phase 4 实现：Excel + Review HTML
+    ├── phase4-export-excel.mjs         Phase 4 实现：Excel + 固定 Dashboard
     └── check-update.sh                 版本检查
 ```
 
-数据落盘到 `~/.linkedin-talent/`（详见 `lib/paths.js`），不再放在 skill 目录内。
+数据落盘到 skill 目录内的 `data/`（详见 `lib/paths.js`），并由 `.gitignore` 排除，不同步到 GitHub。
 
 ## 执行顺序与停顿点
 
@@ -86,8 +86,8 @@ Phase 3 · Profile + 评分    → bash: node scripts/phase3-profile-score.mjs -
    · ≥50 人触发 subagent 跑 L3 LLM 评分，prompt 与 JSON 契约见 phases/03-filter-and-score.md
 Phase 4 · Excel + 话术      → bash: node scripts/phase4-export-excel.mjs --batch-id <id>
    · 列契约见 lib/excel-schema.json；话术模板见 lib/connect-templates.json
-Phase 5 · Review HTML      → phases/05-review.md
-   ↓ 自动 open Review 页（phase4 已生成 HTML）
+Phase 5 · Review Dashboard → phases/05-review.md
+   ↓ 自动 open 固定 Dashboard，用户载入当批 Excel
    ⏸ 等用户粘贴 decisions JSON
 Phase 6 · 发送 Connect      → 直接调 lib/voyager.js 的 sendConnectScript + parseConnectResult
    · 间隔 6-10s、错误码处理详见 lib/voyager.js 与 lib/safety.json

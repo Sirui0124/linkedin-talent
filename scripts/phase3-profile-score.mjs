@@ -8,9 +8,9 @@
  *
  *   或显式指定（高级用法）:
  *   node phase3-profile-score.mjs \
- *     --input    ~/.linkedin-talent/exports/raw_<id>.json \
- *     --criteria ~/.linkedin-talent/criteria/<id>.json \
- *     [--output  ~/.linkedin-talent/exports/phase3_<id>.json] \
+ *     --input    data/exports/raw_<id>.json \
+ *     --criteria data/criteria/<id>.json \
+ *     [--output  data/exports/phase3_<id>.json] \
  *     [--resume  <phase3-partial.json>]
  *
  * Output: { summary, passed, failed }

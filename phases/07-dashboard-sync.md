@@ -1,6 +1,6 @@
 # Phase 7 · 同步到 Master Dashboard
 
-发送完毕后，先保存当批次 Excel，再同步到 master dashboard `~/.linkedin-talent/dashboard.xlsx`。Dashboard 是跨批次累计的人选记录中心。
+发送完毕后，先保存当批次 Excel，再同步到 master dashboard `data/dashboard.xlsx`。Dashboard 是跨批次累计的人选记录中心。
 
 详细列定义参见 `lib/dashboard-schema.json`，**首次运行**自动创建空模板（含 Sheet1 + Sheet2 表头）。
 
@@ -8,7 +8,7 @@
 
 ```python
 def sync_to_dashboard(batch_candidates, batch_meta):
-    dashboard = load_or_create('~/.linkedin-talent/dashboard.xlsx')
+    dashboard = load_or_create('data/dashboard.xlsx')
 
     # Sheet 2: append 当批次记录
     dashboard.sheet2.append_row(batch_meta)
