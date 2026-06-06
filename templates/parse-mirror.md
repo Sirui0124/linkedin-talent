@@ -1,62 +1,89 @@
 # Phase 1.4 解析镜像（用户校对版）
 
-把 Phase 1 的解析结果按下方骨架渲染回给用户。**完整示例参见 parse-mirror-example.md**。
+把 Phase 1 的结果简洁渲染给用户。只展示会影响搜索和筛选的判断。
 
-## 渲染骨架
+## 若需要先追问
+
+当 `intent.clarify` 非空时，只输出：
 
 ```
-我从你的输入做了如下拆解（搜索 → 硬筛 → 评分三层）。请核对，任何一条不对都告诉我：
+我需要先确认 {n} 个关键点，因为它们会直接改变搜索人群：
 
-【L0 真实课题】（仅内部）
+1. {question_1}
+   影响：{why_it_changes_search_or_screening}
+2. {question_2}
+   影响：{why_it_changes_search_or_screening}
+
+你确认后我再把搜索词、筛选标准和评分维度拆出来。
+```
+
+## 完整镜像
+
+```
+我从你的输入做了如下拆解。请核对，任何一条不对都告诉我：
+
+【真实课题】（仅内部）
   {topic_specific}
 
-【L1 搜索关键词】（少而精，决定召回池）
-  primary（必跑）：    {kw_primary join ', '}
-  secondary（必跑）：  {kw_secondary join ', '}
-  fallback（不足时）： {kw_fallback join ', '}
-  ↳ 不进搜索的词：{excluded_kws join ', '}
-    原因：{exclusion_reason 一句话}
+【核心假设】
+  锚点公司：{intent.anchor_company}
+  视角：{intent.view}
+  {for a in intent.assumptions:}
+  · {a}
 
-【L1 目标公司】
-  {for c in target_companies:}
-  {c.name} (priority {c.priority}{若 ID 未确认追加 "⚠️ ID 首次校验"})
-  允许其他公司：{是 / 否}
+【要回答的问题】
+  {for q in research_questions:}
+  · {q.id}. {q.ask}（{q.must_cover ? "必须覆盖" : "可加分/复核"}）
 
-【L2 硬筛规则】（全部 AND，确定性 yes/no）
-  · 公司命中：{any_of_companies join ' / '}
-  · Profile 必含至少一个：{must_have_any_kw join ' / '}
-  · Title 必模糊匹配至少一个：{title_must_match_any join ' / '}
-  · Profile 不能含：{must_not_have_any_kw join ' / '}（默认空）
-  · 近期离职窗口：{recent_departure_months} 个月
+【交付模式】
+  模式：{delivery_mode.mode}
+  搜索池：{delivery_mode.search_pool}
+  输出目标：{delivery_mode.output_target}
+  Connect 目标：{delivery_mode.connect_target}
 
-【L3 LLM 评分维度】（每维度 0-100，加权得总分）
+【目标人群】
+  {for p in personas:}
+  · {p.label} — priority {p.priority}，目标召回 {p.quota}
+    能回答：{p.can_answer join ', '}
+    弱项：{p.weak_on join ', '}
+    搜索入口：{p.search_entries join ', '}
+    筛选证据：{p.screen}
+
+【生态公司发现】
+  是否需要：{ecosystem_company_discovery.required ? "是" : "否"}
+  {for group in ecosystem_company_discovery.company_sets:}
+  · {group.label}：{group.names join ', '}
+    来源/待查方向：{group.source_hint}
+
+【搜索配置】
+  primary：{search_keywords.primary join ', '}
+  secondary：{search_keywords.secondary join ', '}
+  fallback：{search_keywords.fallback join ', '}
+  目标公司：{target_companies join ', '}
+
+【硬筛规则】
+  · 公司/生态：{hard_filters.any_of_companies join ' / '}
+  · Title：{hard_filters.title_must_match_any join ' / '}
+  · 主题组：
+    {for g in hard_filters.topic_groups:}
+    - {g.label}（{g.required ? "必需" : "加分/复核"}）：{g.any_kw join ' / '}
+  · 排除词：{hard_filters.must_not_have_any_kw join ' / '}（默认空）
+  · 时效：{hard_filters.freshness}
+
+【评分维度】
   {for d in scoring_dimensions:}
   · {d.label} (权重 {d.weight}) — {d.description}
 
-【Tier 分档】
-  Tier1 ⭐⭐⭐ = 通过硬筛 + 总分 ≥75
-  Tier2 ⭐⭐  = 通过硬筛 + 总分 50-74
-  Tier3 ⭐   = 通过硬筛 + 总分 30-49
-  排除      = 总分 <30 → Sheet 2
-
 【预计调用规模】
   L1 搜索：{search_calls_estimate}
-  L2 硬筛：纯字符串规则，~{recall_estimate} 人 instant
-  L3 LLM 评分：通过硬筛 ~{filter_pass_estimate} 人 × {len(dims)} 个维度
+  Profile + 筛选：约 {recall_estimate} 人
   耗时：约 {total_minutes_estimate} 分钟
 
-如果有任何字段需要调整（特别是搜索关键词的取舍 / 评分维度的权重），告诉我；否则回复"确认"，进入 Phase 1.5。
+如果这些判断没问题，回复"确认"，进入 Phase 1.5。
 ```
 
-## 渲染规则
+## 规则
 
-- 不要省略任何一节，即使某项为空也写"无"
-- 评分维度必须显式列出每个维度的 label / weight / description，让用户能直接调整权重
-- "⚠️ ID 首次校验" 仅当 `target_companies[i].id == null` 时追加
-- 调用规模估算格式参考 phases/02-search-recall.md 中的"调用矩阵示例"
-
-## 禁止
-
-- **禁止**在输出镜像前直接调用搜索 API
-- **禁止**在用户回复"确认"前进入 Phase 1.5
-- **禁止**Claude 自行扩充 soft_criteria 或评分维度，必须从用户原文提炼
+- `intent.clarify` 非空时不得输出完整镜像。
+- 不要省略"视角"和"目标人群"，这是最容易误搜的地方。
+- 禁止在用户确认前调用搜索 API。

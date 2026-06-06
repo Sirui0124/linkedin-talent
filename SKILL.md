@@ -76,6 +76,7 @@ Phase 0 · 环境检查        → bash scripts/doctor.sh
    ↓   1 = 阻塞     → 把 doctor 的提示原文转给用户
 Phase 1 · 解析三层结构      → phases/01-parse-criteria.md
    ↓ 输出 templates/parse-mirror.md 骨架（参考 parse-mirror-example.md）
+   · 若存在会改变候选池的核心歧义，先问 1-3 个短问题，不进入 Phase 1.5
    ⏸ 等用户回 "确认"
 Phase 1.5 · 话术确认        → phases/015-confirm-templates.md
    ↓ 输出 templates/confirm-1-5.md 骨架
@@ -101,12 +102,20 @@ Phase 7 · Dashboard 同步    → phases/07-dashboard-sync.md（伪代码）
 
    | 层 | Phase | 输入 | 输出 | 做什么 | 不做什么 |
    |---|---|---|---|---|---|
-   | **L1 搜索** | 2 | `search_keywords`（2-4 个最强信号词）+ `target_companies` | ~150-250 人候选池（vanity + hits） | 用 LinkedIn API **少而精地召回**；primary/secondary/fallback 分层扩池 | 不做淘汰（不过滤 marketing/HR）；不做排序打分；**泛词不进搜索**（如 "semiconductor"、"2nm"） |
+   | **L1 搜索** | 2 | `search_keywords`（2-4 个最强信号词）+ `target_companies` | 按 `delivery_mode` 召回：校准 100-200；一步到位 300-500+ | 用 LinkedIn API **少而精地召回**；primary/secondary/fallback 按优先级分层扩池，达标即停 | 不做淘汰（不过滤 marketing/HR）；不做排序打分；**泛词不进搜索**（如 "semiconductor"、"2nm"） |
    | **L2 硬筛** | 3 | 完整 Profile + `hard_filters` | 通过 / 未通过 + 原因 | **确定性 yes/no**：公司、必含/排除关键词、title 模糊匹配，全部 AND | 不做强弱比较（"TSMC 现任 vs 其他公司" 留给 L3）；不做 0-100 打分 |
    | **L3 LLM 评分** | 3 | 通过硬筛者 + `scoring_dimensions` | 各维度 0-100 → 加权总分 → Tier 1/2/3 | **多维度排序**：公司匹配、课题深度、资历聚焦等，按权重加权 | 不淘汰明显无关者（那是 L2）；不在搜索阶段用宽词"赌命中率" |
 
    **关键词分流规则**（Phase 1 解析时执行）：
+   - 先拆 `research_questions` 和 `personas`：明确用户要问什么、谁能回答、Profile 上需要什么证据
+   - 核心不确定点进入 `intent.clarify`：会改变候选池边界的问题必须先问，不要边猜边搜
+   - 先定 `delivery_mode`：用户说 "3 channel experts/partners" 这类数量时，指最终访谈目标人数，不是搜索人数；校准模式搜 100-200 人并返回 10 人，一步到位搜 300-500+ 人并筛 50-100 人，供后续 connect 70-80 人换取 2-3 个有效访谈
+   - 开放型专家需求先拆 `personas`：先判断用户真正需要哪几类人，再为每类人设计搜索入口和筛选口径
+   - "X 的销售渠道/channel/partner" 先判定 `intent.view`：到底要 X 原厂内部销售/渠道，还是 X 的外部渠道商/合作伙伴公司；不能因为出现 X 就只找 X 员工
+   - partner/channel/supplier/customer/construction 类需求先做 `ecosystem_company_discovery`：先找相关公司，再用公司名找人；泛关系词只做 fallback
+   - 多问题需求先建 `hard_filters.topic_groups`，区分必需覆盖和加分/复核；不要把所有词混成一个大 OR
    - 最独特、最专业的 1-2 个词 → L1 `search_keywords.primary`（如 "BEOL"、"Ruthenium"）
+   - primary 召回未达标时，才继续跑 `search_keywords.secondary` / `fallback`
    - 用户列出的其余相关词 → L2 `hard_filters.must_have_any_kw`（如 "2nm"、"process integration"）
    - 用户描述的"理想画像"差异 → L3 `scoring_dimensions`（如"能否就 Ruthenium 量产用量发言"）
 
@@ -122,7 +131,7 @@ Phase 7 · Dashboard 同步    → phases/07-dashboard-sync.md（伪代码）
 ### 一键安装（首次使用）
 ```bash
 # 克隆技能包
-git clone [GITHUB_URL] ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 
 # 一键安装所有依赖
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh

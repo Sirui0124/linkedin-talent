@@ -3,7 +3,7 @@
 **实现入口**：`bash node scripts/phase3-profile-score.mjs --batch-id <id>`
 
 mjs 已实现：
-- **3.0 预筛**（无 API，基于 headline + hits）—— `preFilter()`
+- **3.0 预筛**（无 API，基于搜索卡片 `headline/location` + `hits`，由当批 criteria 驱动）—— `preFilter()`
 - **3.0b Profile 拉取**（间隔由 `humanDelay()` 控制，模拟人类停顿）—— `getProfileScript()`
 - **3.1 L2 硬筛**（公司 / 必含词 / 排除词 / title 模糊匹配，全部 AND，宽松策略）—— `hardFilter()`
 - **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `target_role_duration`/`seniority_focus` / `bonus`）—— `ruleScore()`
@@ -11,6 +11,18 @@ mjs 已实现：
 - **错误码**：401/403/429 → 整批立即停止；其他非 200 仅丢弃单人
 
 本文件**只描述需要 LLM 推理的部分**——即 L3 评分（subagent 模式）与最终 JSON 契约。
+
+## 3.0 搜索卡片轻量预筛
+
+搜索结果阶段稳定字段只有 `name / headline / location / profile_url / vanity / urn / connectionDegree`。`headline` 往往包含当前 title/company 的一句话展示，但不是结构化职位；完整职位、公司、起止时间要等 Profile API。
+
+预筛的目标只是减少明显错位的 Profile 调用，不能替代 L2：
+- 字段兼容：同时支持 `search_keywords.primary/secondary/fallback` 和旧字段 `criteria.search.primary_keywords` 等。
+- 若当批 criteria 提供 `prefilter.title_match_any`，优先用它；否则回退到 `hard_filters.title_must_match_any`。
+- `headline` 命中目标职位类型 → 保留。
+- `headline` 为空，或命中目标公司 + 搜索关键词 → 保留，交给完整 Profile 判断。
+- 只有命中当批 `must_not_have_any_kw` / `prefilter.must_not_have_any_kw` 才丢弃；不要全局把 sales/channel/procurement/BD/marketing 当噪声。
+- 如果用户要工程师，搜索卡片 headline 明确是 product manager，可在此阶段丢弃；如果用户要 channel/sales/procurement，这些 title 应作为正向信号。
 
 ## 何时启用 L3 LLM 评分
 

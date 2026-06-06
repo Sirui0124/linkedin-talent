@@ -4,7 +4,7 @@
 
 ```bash
 # 克隆技能包（用户提供 GitHub 链接）
-git clone [GITHUB_URL] ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 
 # 一键完整安装（自动检测操作系统并配置）
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh

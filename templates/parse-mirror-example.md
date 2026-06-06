@@ -1,66 +1,83 @@
-# 解析镜像示例 — TSMC/Ruthenium 课题
+# 解析镜像示例 — Snowflake 销售渠道课题
 
-下方是一份完整的渲染示例。对照 `parse-mirror.md` 骨架理解每段如何填空。**不要逐字复制示例文本** — Claude 必须根据用户实际输入重新生成各字段，但格式应与示例一致。
+示例只用于理解格式，不要逐字复制。
 
-## 用户输入（风格 C · 自然语言）
+## 用户输入
 
-> Project: could you try to find a TSMC engineer who works on the 2nm process and can speak to the adoption of Ruthenium in that process and how much Ruthenium the industry will use in the future? Intel engineer is ok too.
-> A. Company: 1. TSMC（优先）2. Intel（次优）
-> B. Keyword search: 2nm / advanced node / process integration / BEOL / interconnect / metallization / Ruthenium / Cu replacement
-> C. Target roles: Process Integration Engineer / BEOL/Interconnect Engineer / Advanced Node/Device Engineer / Metallization/Materials Engineer
-> D. 筛选逻辑:
->   1) TSMC/Intel 现任 + 近6个月内离职的人优先
->   2) 6个月以上离职的前员工作为补充
->   3) 其他公司但有很强相关背景（2nm/BEOL/interconnect/materials）的工程师也可考虑
+> 找 3 位 Snowflake 的销售渠道，了解 Q1 consumption 增长、Q2 增长判断、Cortex Code 客户反馈、Snowflake Intelligence consumption 占比、Snowpark 与 Iceberg consumption 占比。
 
 ## 渲染输出
 
 ```
-我从你的输入做了如下拆解（搜索 → 硬筛 → 评分三层）。请核对，任何一条不对都告诉我：
+我从你的输入做了如下拆解。请核对，任何一条不对都告诉我：
 
-【L0 真实课题】（仅内部）
-  Ruthenium adoption in TSMC 2nm process, projecting industry usage
+【真实课题】（仅内部）
+  Snowflake Q1/Q2 consumption and product adoption checks through sales/channel experts
 
-【L1 搜索关键词】（少而精，决定召回池）
-  primary（必跑）：    BEOL
-  secondary（必跑）：  Ruthenium
-  fallback（不足时）： interconnect, metallization
-  ↳ 不进搜索的词："2nm" / "advanced node" / "process integration" / "Cu replacement"
-    原因：泛行业/节点名命中率过高，会稀释结果。已下沉到硬筛 must_have。
+【核心假设】
+  锚点公司：Snowflake
+  视角：channel_partners
+  · "Snowflake 的销售渠道"默认指 Snowflake 外部渠道/合作伙伴视角。
+  · Snowflake 原厂 GTM/Partner SE 可作为补充，但不默认排第一。
+  · 3 位专家可以分工覆盖问题，不要求每个人都覆盖全部产品。
 
-【L1 目标公司】
-  TSMC (priority 1, ⚠️ ID 首次校验)
-  Intel (priority 2)
-  允许其他公司：是（命中 secondary keyword 后由硬筛把关）
+【要回答的问题】
+  · q1. Q1 consumption 增长情况（必须覆盖）
+  · q2. Q2 增长怎么看（必须覆盖）
+  · q3. Cortex Code 客户反馈和 consumption（可加分/复核）
+  · q4. Snowflake Intelligence consumption 占比（可加分/复核）
+  · q5. Snowpark 与 Iceberg consumption 占比（可加分/复核）
 
-【L2 硬筛规则】（全部 AND，确定性 yes/no）
-  · 公司命中：TSMC / Intel 之一  → 标 hit_target_company=true
-              其他公司 → 视为 tier3 候选，靠 must_have 把关
-  · Profile 必含至少一个：
-    BEOL / interconnect / metallization / Ruthenium / advanced node / 2nm / process integration
-  · Title 必模糊匹配至少一个：
-    Process Integration / BEOL / Interconnect / Device / Materials / Metallization / Advanced Node
-  · Profile 不能含：marketing / sales / HR
-  · 近期离职窗口：6 个月（决定 tier1 vs tier2）
+【交付模式】
+  模式：calibration
+  搜索池：100-200
+  输出目标：10 profiles
+  Connect 目标：none
 
-【L3 LLM 评分维度】（每维度 0-100，加权得总分）
-  · 公司匹配 (权重 0.30) — 是否在 TSMC/Intel 现任或近期前任，且参与 BEOL/互连相关团队
-  · 课题深度 (权重 0.30) — 是否能就 Ruthenium 替代铜的具体技术（配方/良率/量产/用量）发言
-  · 资历与聚焦度 (权重 0.25) — 是否 ≥5 年经验，且至少 2 年集中在 2nm/先进节点 BEOL 工序
-  · 加分项 (权重 0.15) — imec/AMAT/Lam/TEL 经历、Ruthenium/Co replacement 论文、staff 以上 title
+【目标人群】
+  · Snowflake 外部渠道/合作伙伴 — priority 1，目标召回 60-100
+    能回答：q1, q2, q3
+    弱项：原厂正式口径、精确产品占比
+    搜索入口：Snowflake alliance, Snowflake partner sales, Snowflake practice
+    筛选证据：外部公司经历 + Snowflake GTM/联盟/解决方案/交付证据
+  · Snowflake 原厂 GTM/Partner SE/AE — priority 2，目标召回 20-40
+    能回答：q2, q3, q4, q5
+    弱项：渠道抽样数字可能偏官方
+    搜索入口：Snowflake Partner Sales Engineer, Snowflake Cortex GTM, Snowflake Snowpark
+    筛选证据：Snowflake 原厂销售、伙伴工程、客户工程、产品 GTM 经历
 
-【Tier 分档】
-  Tier1 ⭐⭐⭐ = 通过硬筛 + 总分 ≥75
-  Tier2 ⭐⭐  = 通过硬筛 + 总分 50-74
-  Tier3 ⭐   = 通过硬筛 + 总分 30-49
-  排除      = 总分 <30 → Sheet 2
+【生态公司发现】
+  是否需要：是
+  · SI/consulting/cloud partners：Accenture, Deloitte, Slalom, AWS, Microsoft, Capgemini（待校验）
+    来源/待查方向：partner locator / marketplace / awards / case studies
+
+【搜索配置】
+  primary：Snowflake alliance, Snowflake partner sales, Snowflake practice
+  secondary：Cortex, Cortex Code, Snowpark, Iceberg
+  fallback：AI Data Cloud, Snowflake marketplace
+  目标公司：Accenture, Deloitte, Slalom, AWS, Microsoft, Capgemini, Snowflake
+
+【硬筛规则】
+  · 公司/生态：上述渠道公司或 Snowflake 原厂补充
+  · Title：Partner / Alliance / Sales / Solution / Architect / GTM / Practice
+  · 主题组：
+    - Snowflake 相关（必需）：Snowflake / AI Data Cloud
+    - Consumption/GTM（必需）：consumption / usage / marketplace / GTM / pipeline / sales
+    - 产品覆盖（加分/复核）：Cortex / Cortex Code / Snowflake Intelligence / Snowpark / Iceberg
+  · 排除词：无
+  · 时效：现任或近 3-6 个月仍接触 Snowflake 客户/渠道优先
+
+【评分维度】
+  · 渠道视角 (权重 0.30) — 是否在外部渠道/合作伙伴侧接触 Snowflake 销售、联盟、交付或 marketplace
+  · 问题覆盖 (权重 0.35) — 能覆盖 consumption、Q2 增长、Cortex/Snowflake Intelligence/Snowpark/Iceberg 中的多少项
+  · 当前性 (权重 0.20) — 是否现任或近期仍接触 Snowflake 客户/渠道
+  · 资历 (权重 0.15) — 是否足够接近客户决策、pipeline 或产品采用反馈
 
 【预计调用规模】
-  L1 搜索：5 次基础（primary BEOL × {TSMC current/past, Intel current/past} + secondary Ruthenium）
-         + 必要时 fallback 2 次
-  L2 硬筛：纯字符串规则，~200 人 instant
-  L3 LLM 评分：通过硬筛 ~80 人 × 4 维度
-  耗时：1-2 分钟搜索 + 4-8 分钟拉 Profile + 1-2 分钟评分 ≈ 7-12 分钟
+  L1 搜索：校准模式先搜 100-200 人；若准确性确认，再扩到 300-500+ 人
+  Profile + 筛选：先返回 10 人校准；full_run 目标筛出 50-100 个可 connect 专家
+  Connect：full_run 后通常 connect 70-80 人，争取 2-3 个愿意接的人
+  耗时：校准约 10-20 分钟；full_run 视搜索规模继续延长
 
-如果有任何字段需要调整（特别是搜索关键词的取舍 / 评分维度的权重），告诉我；否则回复"确认"，进入 Phase 1.5。
+如果这些判断没问题，回复"确认"，进入 Phase 1.5。
 ```

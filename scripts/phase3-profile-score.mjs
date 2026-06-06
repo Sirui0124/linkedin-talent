@@ -97,17 +97,64 @@ function opencliEval(script) {
   return JSON.parse(clean);
 }
 
-// ── Pre-filter (no API, uses headline + hits) ─────────────────────────────────
-const TECH_ROLE_RE = /engineer|process|integration|device|materials|research|scientist|technologist|interconnect|BEOL|metalliz/i;
-const NOISE_RE = /\b(marketing|sales|recruiter|business development|HR|metal trading|scrap|recycl)/i;
+// ── Pre-filter (no API, uses search-card headline + hits) ─────────────────────
+function asArray(value) {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
 
-function preFilter(candidate, primaryKws) {
-  // 目标公司专项关键词命中 → 直接保留
-  if (candidate.hits?.some(h => h.hitTargetCompany && primaryKws.includes(h.kw))) return true;
-  // headline 含噪声词且非专项命中 → 丢弃
-  if (NOISE_RE.test(candidate.headline)) return false;
-  // headline 含技术角色词 → 保留
-  return TECH_ROLE_RE.test(candidate.headline);
+function getSearchKeywordStages(criteria) {
+  const sk = criteria.search_keywords || {};
+  const legacy = criteria.search || {};
+  return {
+    primary: asArray(sk.primary).concat(asArray(legacy.primary), asArray(legacy.primary_keywords)),
+    secondary: asArray(sk.secondary).concat(asArray(legacy.secondary), asArray(legacy.secondary_keywords)),
+    fallback: asArray(sk.fallback).concat(asArray(legacy.fallback), asArray(legacy.fallback_keywords)),
+  };
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map(v => String(v).trim()).filter(Boolean))];
+}
+
+function includesAny(text, kws) {
+  const haystack = String(text || '').toLowerCase();
+  return kws.some(kw => haystack.includes(String(kw).toLowerCase()));
+}
+
+function preFilter(candidate, criteria) {
+  const filters = criteria.hard_filters || {};
+  const pre = criteria.prefilter || criteria.pre_filter || {};
+  const keywordStages = getSearchKeywordStages(criteria);
+  const searchKws = uniqueStrings([
+    ...keywordStages.primary,
+    ...keywordStages.secondary,
+    ...keywordStages.fallback,
+  ]);
+  const titleKws = uniqueStrings([
+    ...asArray(pre.title_match_any),
+    ...asArray(pre.title_must_match_any),
+    ...asArray(filters.prefilter_title_match_any),
+    ...asArray(filters.title_must_match_any),
+  ]);
+  const mustNotKws = uniqueStrings([
+    ...asArray(pre.must_not_have_any_kw),
+    ...asArray(filters.must_not_have_any_kw),
+  ]);
+  const headline = candidate.headline || '';
+  const hitText = (candidate.hits || []).map(h => [h.kw, h.company, h.strategy].filter(Boolean).join(' ')).join(' ');
+  const text = [candidate.name, headline, candidate.location, hitText].filter(Boolean).join(' ');
+
+  if (mustNotKws.length && includesAny(text, mustNotKws)) return false;
+  if (titleKws.length) {
+    if (!headline.trim()) return true;
+    if (includesAny(headline, titleKws)) return true;
+    const targetCompanyKeywordHit = (candidate.hits || []).some(h =>
+      h.hitTargetCompany && searchKws.some(kw => String(kw).toLowerCase() === String(h.kw || '').toLowerCase())
+    );
+    return Boolean(pre.keep_target_company_keyword_hit ?? true) && targetCompanyKeywordHit;
+  }
+  if (searchKws.length) return includesAny(text, searchKws);
+  return true;
 }
 
 // ── L2 Hard filter ────────────────────────────────────────────────────────────
@@ -325,8 +372,6 @@ async function main() {
     console.warn(`[warn] 权重之和 ${wSum.toFixed(2)} != 1.0，已自动归一化`);
   }
 
-  const primaryKws = criteria.search?.primary_keywords || [];
-
   // 断点续跑：加载已处理的 vanity 集合
   const doneVanities = new Set();
   const resumeResults = { passed: [], failed: [] };
@@ -338,7 +383,7 @@ async function main() {
   }
 
   // 预过滤
-  const preFiltered = candidates.filter(c => !doneVanities.has(c.vanity) && preFilter(c, primaryKws));
+  const preFiltered = candidates.filter(c => !doneVanities.has(c.vanity) && preFilter(c, criteria));
   const preDropped = candidates.length - doneVanities.size - preFiltered.length;
   console.log(`[pre-filter] ${candidates.length} → ${preFiltered.length} (丢弃 ${preDropped} 噪声)`);
 

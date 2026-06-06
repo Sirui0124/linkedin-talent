@@ -7,7 +7,7 @@
 ### 第一步：克隆技能包
 ```bash
 # 用户提供的 GitHub 链接示例
-git clone https://github.com/your-repo/linkedin-talent.git ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 ```
 
 ### 第二步：一键安装
@@ -45,7 +45,7 @@ bash ~/.claude/skills/linkedin-talent/scripts/doctor.sh
 # 2. 在 Git Bash 中执行：
 
 # 克隆技能包
-git clone https://github.com/your-repo/linkedin-talent.git ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 
 # 运行一键安装脚本（会自动检测 Windows 环境并适配）
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh
@@ -66,7 +66,7 @@ bash ~/.claude/skills/linkedin-talent/scripts/doctor.sh
 brew install node
 
 # 克隆 + 安装
-git clone https://github.com/your-repo/linkedin-talent.git ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh
 
 # 验证
@@ -86,7 +86,7 @@ sudo apt install -y xclip        # X11 桌面环境
 sudo apt install -y wl-clipboard  # Wayland 桌面环境
 
 # 克隆 + 安装
-git clone https://github.com/your-repo/linkedin-talent.git ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh
 
 # 验证

@@ -9,7 +9,7 @@
 运行以下命令，从 GitHub 拉取最新版本：
 
 ```bash
-cd ~/.claude/skills/linkedin-talent && git fetch origin main --quiet && git status --short
+cd ~/.claude/skills/linkedin-talent && git fetch origin main --quiet && git status --short --branch
 ```
 
 根据输出判断：

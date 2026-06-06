@@ -9,7 +9,7 @@
 ### 1. 一键安装
 ```bash
 # 克隆技能包到 Claude Code
-git clone https://github.com/your-repo/linkedin-talent.git ~/.claude/skills/linkedin-talent
+git clone https://github.com/Sirui0124/linkedin-talent.git ~/.claude/skills/linkedin-talent
 
 # 自动安装所有依赖（支持 Windows/macOS/Linux）
 bash ~/.claude/skills/linkedin-talent/scripts/install-complete.sh
