@@ -6,6 +6,8 @@
 
 ## Step 0.1 · Skill 自动更新
 
+`data/` 是本地 user data（策略、criteria、exports、Excel、dashboard、decisions）。自动更新只能更新代码和模板，不得删除、覆盖或 Git 同步 `data/` 下任何文件。若新增目录，只能兼容式创建空目录。
+
 运行以下命令，从 GitHub 拉取最新版本：
 
 ```bash

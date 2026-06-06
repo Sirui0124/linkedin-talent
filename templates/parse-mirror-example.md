@@ -1,6 +1,6 @@
 # 解析镜像示例 — Snowflake 销售渠道课题
 
-示例只用于理解格式，不要逐字复制。
+示例只用于理解格式，不要逐字复制。Phase 1 面向用户要短，详细搜索策略写入本地 `data/criteria/<batchId>.json`。
 
 ## 用户输入
 
@@ -9,75 +9,46 @@
 ## 渲染输出
 
 ```
-我从你的输入做了如下拆解。请核对，任何一条不对都告诉我：
+我先按下面这个方向拆。请核对，任何一条不对都告诉我：
 
-【真实课题】（仅内部）
+【课题与问题】（仅内部）
   Snowflake Q1/Q2 consumption and product adoption checks through sales/channel experts
+  要回答：
+  · Q1 consumption 增长情况
+  · Q2 增长怎么看
+  · Cortex Code / Snowflake Intelligence / Snowpark / Iceberg 的客户反馈与 consumption 贡献
 
-【核心假设】
-  锚点公司：Snowflake
-  视角：channel_partners
-  · "Snowflake 的销售渠道"默认指 Snowflake 外部渠道/合作伙伴视角。
-  · Snowflake 原厂 GTM/Partner SE 可作为补充，但不默认排第一。
-  · 3 位专家可以分工覆盖问题，不要求每个人都覆盖全部产品。
-
-【要回答的问题】
-  · q1. Q1 consumption 增长情况（必须覆盖）
-  · q2. Q2 增长怎么看（必须覆盖）
-  · q3. Cortex Code 客户反馈和 consumption（可加分/复核）
-  · q4. Snowflake Intelligence consumption 占比（可加分/复核）
-  · q5. Snowpark 与 Iceberg consumption 占比（可加分/复核）
+【我的理解】
+  锚点公司：Snowflake；视角：外部渠道/合作伙伴
+  · 优先找 Snowflake partner / SI / marketplace / implementation 公司里接触客户和 pipeline 的人。
+  · Snowflake 原厂 GTM / Partner SE 只作为补充池。
+  · 3 位专家可以分工覆盖问题，不要求每个人覆盖全部产品。
 
 【交付模式】
-  模式：calibration
-  搜索池：100-200
-  输出目标：10 profiles
-  Connect 目标：none
+  先做 calibration：搜 100-200 人，给你 10 profiles 校准；本轮不发 Connect。
 
 【目标人群】
-  · Snowflake 外部渠道/合作伙伴 — priority 1，目标召回 60-100
-    能回答：q1, q2, q3
-    弱项：原厂正式口径、精确产品占比
-    搜索入口：Snowflake alliance, Snowflake partner sales, Snowflake practice
-    筛选证据：外部公司经历 + Snowflake GTM/联盟/解决方案/交付证据
-  · Snowflake 原厂 GTM/Partner SE/AE — priority 2，目标召回 20-40
-    能回答：q2, q3, q4, q5
-    弱项：渠道抽样数字可能偏官方
-    搜索入口：Snowflake Partner Sales Engineer, Snowflake Cortex GTM, Snowflake Snowpark
-    筛选证据：Snowflake 原厂销售、伙伴工程、客户工程、产品 GTM 经历
+  我会依次找这几类专家：
+  A. 外部渠道 / SI / consulting partner
+     能回答：Q1/Q2 consumption、客户预算、pipeline、竞争替换
+     搜索词：<partner_company> Snowflake, <partner_company> data cloud practice
+     筛选标准：外部 partner 公司经历 + Snowflake GTM / 联盟 / 交付证据
+  B. Cloud marketplace / alliance 专家
+     能回答：marketplace 动销、云生态合作、客户采购路径
+     搜索词：AWS Snowflake marketplace, Azure Snowflake, Google Cloud Snowflake
+     筛选标准：云市场、ISV partnership、data platform partner 经验
+  C. Snowflake 原厂补充画像（仅补充）
+     能回答：官方 GTM、产品采用和 partner motion
+     搜索词：Snowflake partner sales engineer, Snowflake GTM
+     筛选标准：原厂 partner / GTM / customer engineering 经验
 
-【生态公司发现】
-  是否需要：是
-  · SI/consulting/cloud partners：Accenture, Deloitte, Slalom, AWS, Microsoft, Capgemini（待校验）
-    来源/待查方向：partner locator / marketplace / awards / case studies
+【Partner / 生态公司】
+  我会先做一轮公司预研，找出真实 partner / SI / marketplace / implementation 公司，再按这些公司搜人；不会直接把 Snowflake 当作主要目标公司。
+  · SI / consulting / cloud partners：待查；来源：partner locator / marketplace / awards / case studies
 
-【搜索配置】
-  primary：Snowflake alliance, Snowflake partner sales, Snowflake practice
-  secondary：Cortex, Cortex Code, Snowpark, Iceberg
-  fallback：AI Data Cloud, Snowflake marketplace
-  目标公司：Accenture, Deloitte, Slalom, AWS, Microsoft, Capgemini, Snowflake
-
-【硬筛规则】
-  · 公司/生态：上述渠道公司或 Snowflake 原厂补充
-  · Title：Partner / Alliance / Sales / Solution / Architect / GTM / Practice
-  · 主题组：
-    - Snowflake 相关（必需）：Snowflake / AI Data Cloud
-    - Consumption/GTM（必需）：consumption / usage / marketplace / GTM / pipeline / sales
-    - 产品覆盖（加分/复核）：Cortex / Cortex Code / Snowflake Intelligence / Snowpark / Iceberg
-  · 排除词：无
-  · 时效：现任或近 3-6 个月仍接触 Snowflake 客户/渠道优先
-
-【评分维度】
-  · 渠道视角 (权重 0.30) — 是否在外部渠道/合作伙伴侧接触 Snowflake 销售、联盟、交付或 marketplace
-  · 问题覆盖 (权重 0.35) — 能覆盖 consumption、Q2 增长、Cortex/Snowflake Intelligence/Snowpark/Iceberg 中的多少项
-  · 当前性 (权重 0.20) — 是否现任或近期仍接触 Snowflake 客户/渠道
-  · 资历 (权重 0.15) — 是否足够接近客户决策、pipeline 或产品采用反馈
-
-【预计调用规模】
-  L1 搜索：校准模式先搜 100-200 人；若准确性确认，再扩到 300-500+ 人
-  Profile + 筛选：先返回 10 人校准；full_run 目标筛出 50-100 个可 connect 专家
-  Connect：full_run 后通常 connect 70-80 人，争取 2-3 个愿意接的人
-  耗时：校准约 10-20 分钟；full_run 视搜索规模继续延长
+【策略文件】
+  详细搜索策略我会存到：data/criteria/search_YYYYMMDD_HHMM_Snowflake.json
+  这是本地 user data，不会同步到 GitHub；Phase 2/3 会按这份 JSON 校验和执行。
 
 如果这些判断没问题，回复"确认"，进入 Phase 1.5。
 ```

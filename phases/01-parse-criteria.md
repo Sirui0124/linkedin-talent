@@ -6,6 +6,8 @@
 
 ```yaml
 topic_specific: string
+strategy_json_path: data/criteria/<batchId>.json
+saved_strategy_path: data/strategies/<role-or-topic>.json  # 可选，用户要复用某类岗位/课题策略时才写
 
 intent:
   anchor_company: Snowflake              # 被调研的公司/产品方
@@ -29,7 +31,7 @@ personas:
     quota: "60-100"
     can_answer: ["q1", "q2", "q3"]
     weak_on: ["原厂正式口径"]
-    search_entries: ["Snowflake alliance", "Snowflake partner sales", "Snowflake practice"]
+    search_entries: ["<partner_company> Snowflake", "<partner_company> alliance", "<partner_company> data cloud practice"]
     screen: "外部公司经历 + Snowflake GTM/交付/联盟/解决方案证据"
 
 ecosystem_company_discovery:
@@ -42,7 +44,7 @@ target_companies:
   - {name: "Snowflake", priority: 3, source: "anchor_internal_supplement"}
 
 search_keywords:
-  primary: ["Snowflake alliance", "Snowflake partner sales"]
+  primary: ["Snowflake", "data cloud practice", "partner alliance"]
   secondary: ["Cortex", "Snowpark", "Iceberg"]
   fallback: ["AI Data Cloud", "Snowflake practice"]
 
@@ -80,6 +82,10 @@ scoring_dimensions:
 - `search_entries`: 可直接拿去搜的入口。
 - `screen`: Profile 上必须看到的证据。
 
+对用户展示时最多保留 2-3 个 persona。完整 `hard_filters`、`scoring_dimensions`、`target_companies`、`search_keywords` 写入 `data/criteria/<batchId>.json`，Phase 1 镜像只给路径，不默认展开。
+
+`data/criteria/` 和 `data/strategies/` 都是本地 user data，不纳入 Git 同步。代码更新后必须继续读取已有 JSON；新增字段只能向后兼容，不能要求旧策略重写。
+
 如果一个人只能讲产品技术但不能讲 consumption，不要排在只做渠道抽样的人前面。最终 3-5 位专家可以分工覆盖所有问题，不要求每人都覆盖全部，除非用户明确要求。
 
 ### 决定交付模式和搜索规模
@@ -105,6 +111,17 @@ scoring_dimensions:
 
 Snowflake case 的正确理解：Snowflake 是 anchor，不等于候选人必须在 Snowflake。优先找 Snowflake 生态里的 partner/alliance/practice/GTM/solution 人；原厂 Partner SE 可补充，但不应默认排第一。
 
+### Partner / 生态公司需求：先找公司，再找人
+
+当 `intent.view=channel_partners`，或用户说 partner/channel/supplier/customer/reseller/implementation/marketplace：
+
+- Phase 1 必须设 `ecosystem_company_discovery.required=true`。
+- 先通过 partner locator、marketplace、case studies、awards、联合新闻稿、招聘 JD、行业榜单找出真实公司池。
+- `target_companies` 优先放发现出的外部公司；锚点公司只作为 `source=anchor_internal_supplement` 的补充池。
+- L1 primary 应该是 `partner_company × anchor/topic`，例如 `Accenture Snowflake`、`Deloitte Cortex`、`AWS Snowflake marketplace`，而不是单独搜 `Snowflake partner sales`。
+- 泛关系词如 `partner`、`channel`、`reseller` 只能和具体公司名或锚点产品组合使用，不能作为主搜索词单独扩池。
+- 如果尚未发现公司，Phase 1 镜像要告诉用户"我会先做公司预研"，而不是把锚点公司当作目标公司直接开搜。
+
 ### 什么时候必须先问
 
 只问会改变候选池边界的问题，最多 3 个：
@@ -124,7 +141,7 @@ Snowflake case 的正确理解：Snowflake 是 anchor，不等于候选人必须
 
 搜索词从 persona 反推，不照抄用户所有词：
 
-- `primary`: 最能定位人的组合，通常是公司/生态锚点 + 角色词，例如 `Snowflake alliance`、`Snowflake partner sales`。
+- `primary`: 最能定位人的组合。内部原厂需求通常是公司/技术锚点 + 角色词；partner 需求必须优先是 partner 公司 + anchor/topic，例如 `Accenture Snowflake`、`Deloitte Cortex`。
 - `secondary`: 关键产品/技术词，用于补池，例如 `Cortex`、`Snowpark`、`Iceberg`。
 - `fallback`: 更宽的生态词，例如 `AI Data Cloud`、`Snowflake practice`。
 
@@ -164,7 +181,10 @@ L2 只做确定性判断：
 ## 1.5 输出规则
 
 - `intent.clarify` 非空：只输出要确认的问题和影响，不输出完整镜像，不进 Phase 1.5。
-- `intent.clarify` 为空：按 `templates/parse-mirror.md` 输出简洁解析镜像，等用户确认。
+- `intent.clarify` 为空：先把完整执行策略写入 `data/criteria/<batchId>.json`（或在无法写文件时明确给出拟存路径和 JSON 摘要），再按 `templates/parse-mirror.md` 输出简洁解析镜像，等用户确认。
+- Phase 1 镜像必须短：课题与问题放最前；交付模式一句话；目标人群 2-3 类；硬筛、评分权重、排除词、完整搜索矩阵不默认展示。
+- 若用户希望沉淀某类岗位/课题策略，可另存到 `data/strategies/<role-or-topic>.json`；这仍是 user data，不推送到 GitHub。
+- 读取既有策略时必须兼容旧字段：例如 `search_keywords` 与旧 `search`、`prefilter` 与旧 `pre_filter` 均可接受。缺省字段用当前默认规则补齐。
 - 禁止在用户确认前调用搜索 API。
 
 ## 1.6 边界场景

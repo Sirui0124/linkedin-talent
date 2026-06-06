@@ -6,6 +6,7 @@
 # 数据布局（与 lib/paths.js 一致）：
 #   data/
 #     ├── dashboard.xlsx
+#     ├── strategies/ <role-or-topic>.json
 #     ├── batches/   linkedin_<batchId>.xlsx
 #     ├── criteria/  <batchId>.json
 #     ├── exports/   raw_<batchId>.json / phase3_<batchId>.json
@@ -17,7 +18,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATA_HOME="${LINKEDIN_TALENT_HOME:-$SKILL_ROOT/data}"
+STRATEGIES_DIR="$DATA_HOME/strategies"
 BATCHES_DIR="$DATA_HOME/batches"
+CRITERIA_DIR="$DATA_HOME/criteria"
+EXPORTS_DIR="$DATA_HOME/exports"
 DECISIONS_DIR="$DATA_HOME/decisions"
 ARCHIVE_DIR="$DATA_HOME/archive"
 
@@ -28,7 +32,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 ensure_dirs() {
-    mkdir -p "$BATCHES_DIR" "$DECISIONS_DIR" "$ARCHIVE_DIR"
+    mkdir -p "$STRATEGIES_DIR" "$BATCHES_DIR" "$CRITERIA_DIR" "$EXPORTS_DIR" "$DECISIONS_DIR" "$ARCHIVE_DIR"
 }
 
 # 从 linkedin_<batchId>.xlsx 提取 batchId
@@ -93,6 +97,23 @@ list_batches() {
     echo ""
 }
 
+list_strategies() {
+    ensure_dirs
+    log "Saved strategies under $STRATEGIES_DIR:"
+    echo ""
+    shopt -s nullglob
+    local count=0
+    for file in "$STRATEGIES_DIR"/*.json; do
+        printf "- %s\n" "$(basename "$file")"
+        ((count++)) || true
+    done
+    shopt -u nullglob
+    if [[ $count -eq 0 ]]; then
+        echo "(none)"
+    fi
+    echo ""
+}
+
 archive_old() {
     ensure_dirs
     local days="${1:-90}"
@@ -126,6 +147,7 @@ check_naming() {
 
 case "${1:-list}" in
     list|ls)   list_batches ;;
+    strategies) list_strategies ;;
     archive)   archive_old "${2:-90}" ;;
     check)     check_naming ;;
     help|-h|--help)
@@ -136,6 +158,8 @@ Usage: $0 [command]
 
 Commands:
   list     List all batches with decision/status (default)
+  strategies
+           List saved user strategies under data/strategies
   archive  Archive files older than N days (default 90)
   check    Verify file naming compliance
   help     Show this help

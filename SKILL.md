@@ -63,6 +63,7 @@ linkedin-talent/
 ```
 
 数据落盘到 skill 目录内的 `data/`（详见 `lib/paths.js`），并由 `.gitignore` 排除，不同步到 GitHub。
+`data/strategies/`、`data/criteria/`、`data/exports/`、`data/batches/` 都是本地 user data。代码更新必须兼容读取已有文件，不能覆盖用户沉淀的策略或输出。
 
 ## 执行顺序与停顿点
 
@@ -113,6 +114,7 @@ Phase 7 · Dashboard 同步    → phases/07-dashboard-sync.md（伪代码）
    - 开放型专家需求先拆 `personas`：先判断用户真正需要哪几类人，再为每类人设计搜索入口和筛选口径
    - "X 的销售渠道/channel/partner" 先判定 `intent.view`：到底要 X 原厂内部销售/渠道，还是 X 的外部渠道商/合作伙伴公司；不能因为出现 X 就只找 X 员工
    - partner/channel/supplier/customer/construction 类需求先做 `ecosystem_company_discovery`：先找相关公司，再用公司名找人；泛关系词只做 fallback
+   - Phase 1 面向用户只输出精简校对版：课题与问题、交付一句话、2-3 类目标人群、partner 公司预研说明、详细策略 JSON 路径。硬筛/权重/完整搜索矩阵写入 `data/criteria/<batchId>.json`，不默认展开。
    - 多问题需求先建 `hard_filters.topic_groups`，区分必需覆盖和加分/复核；不要把所有词混成一个大 OR
    - 最独特、最专业的 1-2 个词 → L1 `search_keywords.primary`（如 "BEOL"、"Ruthenium"）
    - primary 召回未达标时，才继续跑 `search_keywords.secondary` / `fallback`
