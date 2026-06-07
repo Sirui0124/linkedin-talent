@@ -16,7 +16,7 @@
  *
  * ── 输出 ─────────────────────────────────────────────────────────────────
  *   1. <output>.xlsx                Excel 三 Sheet：候选人 / 淘汰名单 / 统计
- *   2. 固定 Review Dashboard         templates/review-dashboard.html（自动 open，用户载入 Excel）
+ *   2. 固定 Review Dashboard         localhost 打开模板，并自动载入当批 Excel
  *   3. (criteria/decisions 等保持原位，本脚本不动)
  *
  * ── Excel 列契约 ──────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { createRequire } from 'module';
 import {
   SKILL_ROOT, criteriaPath, phase3JsonPath, batchExcelPath,
@@ -193,6 +193,13 @@ function buildPassedRows(passed, opts, criteria) {
       .map(p => `${p.company} | ${p.title} | ${p.startYear || '?'}-${p.endYear || 'now'}`)
       .join('\n') || '—';
   }
+  function fullExp(positions) {
+    return (positions || [])
+      .map(p => [p.company, p.title, `${p.startYear || '?'}-${p.endYear || 'now'}`, p.desc || '']
+        .map(v => String(v || '').replace(/\s+/g, ' ').trim())
+        .join(' | '))
+      .join('\n') || '—';
+  }
   function edu(educations) {
     return (educations || []).map(e => [e.school, e.degree, e.field].filter(Boolean).join(' · ')).join('\n') || '—';
   }
@@ -207,11 +214,11 @@ function buildPassedRows(passed, opts, criteria) {
     };
     return (sb || []).map(d => `${labels[d.key] || d.key}:${d.score}`).join(' / ');
   }
-  function tierLabel(t) { return t === 1 ? '⭐⭐⭐' : t === 2 ? '⭐⭐' : t === 3 ? '⭐' : '-'; }
+  function tierLabel(t) { return t === 1 ? '⭐⭐⭐' : t === 2 ? '⭐⭐' : t === 3 ? '⭐' : t === 0 ? '排除' : '-'; }
 
   const header = [
     '序号', 'Tier', '总分', '分项评分', '姓名', '当前职位', '当前公司',
-    '目标公司经历', '其他经历', '学历', '地点', '评分理由',
+    '目标公司经历', '其他经历', '完整经历', '学历', '地点', '评分理由',
     'matched_signals', 'missed_signals', 'highlight_for_outreach',
     'Connect 话术', 'Profile URL', 'Vanity', 'URN',
     '搜索命中', '评分方式', 'Connect状态',
@@ -224,7 +231,7 @@ function buildPassedRows(passed, opts, criteria) {
       : []);
     rows.push([
       i + 1,
-      `${c.tier || '?'} ${tierLabel(c.tier)}`,
+      `${c.tier ?? '?'} ${tierLabel(c.tier)}`,
       c.score ?? '',
       dimScores(c.scores_breakdown),
       c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
@@ -232,6 +239,7 @@ function buildPassedRows(passed, opts, criteria) {
       c.current_company || positions[0]?.company || '',
       targetExp(positions),
       otherExp(positions),
+      fullExp(positions),
       edu(c.educations || []),
       c.location || '',
       c.reasoning || '',
@@ -264,6 +272,36 @@ function freezeTopRow(ws) {
   ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
 }
 
+async function waitForReviewServer(port) {
+  const url = `http://127.0.0.1:${port}/health`;
+  for (let i = 0; i < 20; i++) {
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) return true;
+    } catch {}
+    await new Promise(r => setTimeout(r, 150));
+  }
+  return false;
+}
+
+async function openReviewDashboard(excelPath) {
+  const port = Number(process.env.LINKEDIN_TALENT_REVIEW_PORT || 45217);
+  const serverPath = resolve(SKILL_ROOT, 'scripts/review-server.mjs');
+  const child = spawn(process.execPath, [serverPath], {
+    cwd: SKILL_ROOT,
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, LINKEDIN_TALENT_REVIEW_PORT: String(port) },
+  });
+  child.unref();
+  await waitForReviewServer(port);
+  const excelUrl = `/api/excel?path=${encodeURIComponent(resolve(excelPath))}`;
+  const name = encodeURIComponent(excelPath.replace(/^.*[\\/]/, ''));
+  const url = `http://127.0.0.1:${port}/review-dashboard.html?excel=${encodeURIComponent(excelUrl)}&name=${name}`;
+  execSync(`open "${url}"`);
+  return url;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const opts = parseArgs();
@@ -282,7 +320,7 @@ async function main() {
   // Sheet 1
   const passedRows = buildPassedRows(passed, opts, criteria);
   const ws1 = XLSX.utils.aoa_to_sheet(passedRows);
-  applyColumnWidths(ws1, [5, 8, 6, 28, 18, 22, 16, 30, 30, 25, 14, 35, 30, 30, 40, 60, 45, 25, 40, 30, 8, 8]);
+  applyColumnWidths(ws1, [5, 8, 6, 28, 18, 22, 16, 30, 30, 55, 25, 14, 35, 30, 30, 40, 60, 45, 25, 40, 30, 8, 8]);
   freezeTopRow(ws1);
 
   // Sheet 2
@@ -325,9 +363,10 @@ async function main() {
     process.exit(1);
   }
   console.log(`✓ Dashboard  : ${tplPath}`);
-  execSync(`open "${tplPath}"`);
+  const dashboardUrl = await openReviewDashboard(opts.output);
 
   console.log(`✓ Excel      : ${opts.output}`);
+  console.log(`✓ Review URL : ${dashboardUrl}`);
   console.log(`  候选人 ${passed.length} 行 (T1:${t1} T2:${t2} T3:${t3}) | 淘汰 ${failed.length} 行`);
 }
 

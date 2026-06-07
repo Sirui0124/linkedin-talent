@@ -19,6 +19,7 @@
 import { execFileSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { homedir } from 'os';
 import {
   rawCandidatesPath, criteriaPath, phase3JsonPath, ensureDataDirs,
 } from '../lib/paths.js';
@@ -27,13 +28,19 @@ import { isValidBatchId } from '../lib/naming.js';
 // ── CLI args ──────────────────────────────────────────────────────────────────
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { batchId: null, input: null, criteria: null, output: null, resume: null };
+  const opts = {
+    batchId: null, input: null, criteria: null, output: null, resume: null,
+    useLlm: process.env.LINKEDIN_TALENT_LLM !== '0',
+    llmOnly: false,
+  };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--batch-id') opts.batchId  = args[++i];
     if (args[i] === '--input')    opts.input    = resolve(args[++i]);
     if (args[i] === '--criteria') opts.criteria = resolve(args[++i]);
     if (args[i] === '--output')   opts.output   = resolve(args[++i]);
     if (args[i] === '--resume')   opts.resume   = resolve(args[++i]);
+    if (args[i] === '--no-llm')   opts.useLlm = false;
+    if (args[i] === '--llm-only') opts.llmOnly = true;
   }
   // 通过 batch-id 自动展开
   if (opts.batchId) {
@@ -330,6 +337,186 @@ function ruleReasoning(profile, dimScores, dims, criteria) {
   };
 }
 
+// ── L3 LLM score ─────────────────────────────────────────────────────────────
+function loadLocalSecretsEnv() {
+  const secretPath = resolve(homedir(), '.config/ai-secrets/env.zsh');
+  if (!existsSync(secretPath)) return;
+  const text = readFileSync(secretPath, 'utf8');
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=(.*)$/);
+    if (!m) continue;
+    const key = m[1];
+    if (!/^ANTHROPIC_/.test(key) || process.env[key]) continue;
+    let val = m[2].trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    process.env[key] = val;
+  }
+}
+
+function getLlmConfig() {
+  loadLocalSecretsEnv();
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  return {
+    provider: 'anthropic',
+    apiKey,
+    baseUrl: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, ''),
+    model: process.env.LINKEDIN_TALENT_LLM_MODEL || process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+  };
+}
+
+function positionsText(positions) {
+  return (positions || []).slice(0, 12).map(p =>
+    `${p.company || ''} | ${p.title || ''} | ${p.startYear || '?'}-${p.endYear || 'now'} | ${(p.desc || '').slice(0, 180)}`
+  ).join('\n');
+}
+
+function hitsSummary(hits) {
+  return (hits || []).map(h => [h.kw, h.strategy, h.company].filter(Boolean).join('@')).join(' + ');
+}
+
+function buildLlmPrompt(candidate, criteria) {
+  const dims = criteria.scoring_dimensions || [];
+  const weights = Object.fromEntries(dims.map(d => [d.key, d.weight ?? 0]));
+  return `你是股票投资研究专家访谈的 LinkedIn 候选人评分员。请只基于候选人 Profile 和搜索命中信号评分，不要编造未显示的信息。
+
+【研究背景】
+${criteria.research_precheck?.research_context || criteria.topic_specific || ''}
+
+【研究问题】
+${(criteria.research_questions || []).map(q => `- ${q.ask}`).join('\n')}
+
+【评分维度】
+${dims.map(d => `- ${d.key} (${d.label}, weight ${d.weight}): ${d.description}`).join('\n')}
+
+【评分口径】
+100 = 直接高度匹配；75 = 明显匹配；50 = 部分相关但证据不足；25 = 弱相关；0 = 不相关。
+必须特别区分泛 power / 泛 ADI 经历和能验证 Google/TPU/AI infrastructure power 的强信号。
+输出 score 必须按权重加权；权重为：${JSON.stringify(weights)}。
+
+【候选人 Profile】
+姓名：${candidate.name}
+当前：${candidate.current_title || ''} @ ${candidate.current_company || ''}
+Headline：${candidate.headline || ''}
+经历：
+${positionsText(candidate.positions)}
+学历：${(candidate.educations || []).map(e => [e.school, e.degree, e.field].filter(Boolean).join(' · ')).join('; ')}
+技能：${(candidate.skills || []).join(', ')}
+搜索命中：${hitsSummary(candidate.hits)}
+
+【输出 JSON，仅输出 JSON，不要 markdown】
+{
+  "scores_breakdown": ${JSON.stringify(dims.map(d => ({ key: d.key, score: 50 })))},
+  "score": 50,
+  "tier": 2,
+  "reasoning": "1-2句中文，说明为什么适合或不适合验证本投研问题",
+  "matched_signals": ["具体命中信号"],
+  "missed_signals": ["具体缺失信号"],
+  "highlight_for_outreach": "英文一句，适合 Connect note 的个性化亮点，不能暴露 ADI+Google 具体研究指向"
+}`;
+}
+
+function extractJson(text) {
+  const raw = String(text || '').trim();
+  try { return JSON.parse(raw); } catch {}
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) return JSON.parse(fenced[1]);
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
+  throw new Error('LLM response did not contain JSON');
+}
+
+async function callAnthropic(config, prompt) {
+  const resp = await fetch(`${config.baseUrl}/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: 1200,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const body = await resp.text();
+  if (!resp.ok) throw new Error(`LLM HTTP ${resp.status}: ${body.slice(0, 200)}`);
+  const data = JSON.parse(body);
+  return (data.content || []).map(x => x.text || '').join('\n');
+}
+
+function normalizeLlmScore(parsed, criteria, fallback) {
+  const dims = criteria.scoring_dimensions || [];
+  const byKey = new Map((parsed.scores_breakdown || []).map(d => [d.key, Number(d.score)]));
+  const scores_breakdown = dims.map((d, i) => {
+    const fallbackScore = fallback.scores_breakdown?.[i]?.score ?? 50;
+    const n = byKey.has(d.key) ? byKey.get(d.key) : fallbackScore;
+    return { key: d.key, score: Math.max(0, Math.min(100, Math.round(Number.isFinite(n) ? n : fallbackScore))) };
+  });
+  const score = Math.round(scores_breakdown.reduce((sum, d, i) =>
+    sum + d.score * (dims[i]?.weight ?? 1 / Math.max(dims.length, 1)), 0));
+  const tier = score >= 75 ? 1 : score >= 50 ? 2 : score >= 30 ? 3 : 0;
+  return {
+    scores_breakdown,
+    score,
+    tier,
+    reasoning: String(parsed.reasoning || fallback.reasoning || ''),
+    matched_signals: asArray(parsed.matched_signals).map(String),
+    missed_signals: asArray(parsed.missed_signals).map(String),
+    highlight_for_outreach: String(parsed.highlight_for_outreach || fallback.highlight_for_outreach || ''),
+    scored_by: 'llm',
+  };
+}
+
+async function scoreCandidateWithLlm(candidate, criteria, config) {
+  const prompt = buildLlmPrompt(candidate, criteria);
+  const text = await callAnthropic(config, prompt);
+  return normalizeLlmScore(extractJson(text), criteria, candidate);
+}
+
+async function applyLlmScores(results, criteria, opts) {
+  if (!opts.useLlm) {
+    console.log('[llm] 已跳过 (--no-llm 或 LINKEDIN_TALENT_LLM=0)');
+    return { attempted: 0, succeeded: 0, skipped: results.passed.length };
+  }
+  const config = getLlmConfig();
+  if (!config) {
+    console.warn('[llm] 未找到 ANTHROPIC_API_KEY，保留规则评分');
+    return { attempted: 0, succeeded: 0, skipped: results.passed.length, reason: 'missing_api_key' };
+  }
+  let attempted = 0;
+  let succeeded = 0;
+  let skipped = 0;
+  for (const c of results.passed) {
+    if (c.scored_by === 'llm' && !opts.llmOnly) {
+      skipped++;
+      continue;
+    }
+    attempted++;
+    process.stdout.write(`[llm ${attempted}/${results.passed.length}] ${c.name} ... `);
+    try {
+      const llm = await scoreCandidateWithLlm(c, criteria, config);
+      Object.assign(c, llm);
+      succeeded++;
+      console.log(`score=${c.score} tier=${c.tier}`);
+    } catch (e) {
+      c.llm_error = e.message;
+      console.log(`fallback rule (${e.message})`);
+      if (/auth|401|403|invalid.?api.?key/i.test(e.message)) {
+        console.warn('[llm] 认证类错误，停止本轮 LLM 重试，保留其余规则评分');
+        break;
+      }
+    }
+    await sleep(250);
+  }
+  return { attempted, succeeded, skipped };
+}
+
 // ── Profile fetch ─────────────────────────────────────────────────────────────
 function getProfileScript(vanity) {
   return `(async () => {
@@ -370,6 +557,22 @@ async function main() {
   if (Math.abs(wSum - 1.0) > 0.01) {
     criteria.scoring_dimensions.forEach(d => d.weight = d.weight / wSum);
     console.warn(`[warn] 权重之和 ${wSum.toFixed(2)} != 1.0，已自动归一化`);
+  }
+
+  if (opts.llmOnly) {
+    if (!existsSync(opts.output)) {
+      console.error(`[error] --llm-only 需要已有 phase3 输出: ${opts.output}`);
+      process.exit(1);
+    }
+    const current = JSON.parse(readFileSync(opts.output, 'utf8'));
+    const results = { passed: current.passed || [], failed: current.failed || [] };
+    const llm = await applyLlmScores(results, criteria, opts);
+    const output = summarize(results, current.summary?.total || results.passed.length + results.failed.length, current.summary?.pre_dropped || 0, current.summary?.stop_reason, { llm });
+    writeFileSync(opts.output, JSON.stringify(output, null, 2));
+    console.log('\n── LLM 重评完成 ───────────────────────────────');
+    console.log(`LLM成功: ${llm.succeeded}/${llm.attempted}`);
+    console.log(`输出: ${opts.output}`);
+    return;
   }
 
   // 断点续跑：加载已处理的 vanity 集合
@@ -466,7 +669,10 @@ async function main() {
 
   if (stopReason) console.error(`\n[STOP] ${stopReason}`);
 
-  const output = summarize(results, candidates.length, preDropped, stopReason);
+  const llm = stopReason ? { attempted: 0, succeeded: 0, skipped: results.passed.length, reason: 'profile_fetch_stopped' }
+    : await applyLlmScores(results, criteria, opts);
+
+  const output = summarize(results, candidates.length, preDropped, stopReason, { llm });
   writeFileSync(opts.output, JSON.stringify(output, null, 2));
 
   console.log('\n── 完成 ──────────────────────────────────────');
@@ -476,11 +682,12 @@ async function main() {
   const t2 = results.passed.filter(c => c.tier === 2).length;
   const t3 = results.passed.filter(c => c.tier === 3).length;
   console.log(`Tier分布: T1=${t1}  T2=${t2}  T3=${t3}`);
+  if (llm?.attempted) console.log(`LLM评分: ${llm.succeeded}/${llm.attempted}`);
   console.log(`输出: ${opts.output}`);
   if (stopReason) console.log(`⚠️  ${stopReason}`);
 }
 
-function summarize(results, total, preDropped, stopReason) {
+function summarize(results, total, preDropped, stopReason, extra = {}) {
   const t = results.passed;
   return {
     summary: {
@@ -494,6 +701,7 @@ function summarize(results, total, preDropped, stopReason) {
       tier3: t.filter(c => c.tier === 3).length,
       excluded: t.filter(c => c.tier === 0).length,
       stop_reason: stopReason || null,
+      llm: extra.llm || null,
       generated_at: new Date().toISOString(),
     },
     passed: results.passed.sort((a, b) => (b.score || 0) - (a.score || 0)),

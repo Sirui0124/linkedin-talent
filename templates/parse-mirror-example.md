@@ -11,6 +11,11 @@
 ```
 我先按下面这个方向拆。请核对，任何一条不对都告诉我：
 
+【投研预判断】
+  需求足够明确，直接出方案。
+  这是在验证 Snowflake 当季 consumption、后续增长和产品采用情况，适合用渠道/实施生态专家交叉验证。
+  判断依据：研究对象、问题、专家视角和最终专家目标都清楚；只需默认先做 10 profiles 校准。
+
 【课题与问题】（仅内部）
   Snowflake Q1/Q2 consumption and product adoption checks through sales/channel experts
   要回答：
@@ -43,12 +48,20 @@
      筛选标准：原厂 partner / GTM / customer engineering 经验
 
 【Partner / 生态公司】
-  我会先做一轮公司预研，找出真实 partner / SI / marketplace / implementation 公司，再按这些公司搜人；不会直接把 Snowflake 当作主要目标公司。
-  · SI / consulting / cloud partners：待查；来源：partner locator / marketplace / awards / case studies
+  我已先做公司预研，下面这些 partner / SI / marketplace / implementation 公司会直接进入 L1 搜索关键词；不会直接把 Snowflake 当作主要目标公司。
+  · SI / consulting / cloud partners：Accenture, Deloitte, Capgemini, Slalom, PwC, IBM Consulting；来源：partner locator / marketplace / awards / case studies
+  · Cloud / marketplace partners：AWS, Microsoft Azure, Google Cloud；来源：marketplace / joint announcements
+
+【沟通话术】
+  对外话题：enterprise data platform and AI product adoption
+  主旨：邀请对方参加 60-min anonymous paid consultation，先索取 personal email 发送正式邀请和 honorarium details。
+  参考模板（筛选后会按每位候选人 Profile 个性化）：
+    Hi Emma, I'm Zadie at Funda.ai (Singapore-based research + expert network). We're conducting a paid ($300-800/hr) research on enterprise data platform and AI product adoption. Your expertise is exactly what we're looking for — do you have a personal email where I can send the formal invitation and honorarium details?
+  注意：这一步只确认话术方向；名单出来后我会生成逐人话术预览，你确认人选和话术后才会发 Connect。
 
 【策略文件】
   详细搜索策略我会存到：data/criteria/search_YYYYMMDD_HHMM_Snowflake.json
-  这是本地 user data，不会同步到 GitHub；Phase 2/3 会按这份 JSON 校验和执行。
+  这是本地 user data，后续步骤会按这份 JSON 校验和执行。
 
-如果这些判断没问题，回复"确认"，进入 Phase 1.5。
+如果这些判断没问题，回复"确认"，我就开始搜索；不会发任何消息。
 ```

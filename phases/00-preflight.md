@@ -11,16 +11,17 @@
 运行以下命令，从 GitHub 拉取最新版本：
 
 ```bash
-cd ~/.claude/skills/linkedin-talent && git fetch origin main --quiet && git status --short --branch
+bash ~/.claude/skills/linkedin-talent/scripts/update-skill.sh
 ```
 
 根据输出判断：
 
 | 情况 | 处理 |
 |------|------|
-| 输出为空（已是最新）| 播报 `✓ linkedin-talent 已是最新版` 继续 |
-| 有 `behind` 或文件差异 | 运行 `git pull origin main --ff-only` 拉取，播报 `↑ 已更新到最新版本` |
-| 网络超时 / 失败 | 播报 `⚠ GitHub 连接超时，跳过更新` 继续（**不中断流程**）|
+| `✓ linkedin-talent 已是最新版` | 继续 |
+| `↑ linkedin-talent 已更新到最新版本` | 继续 |
+| `✓ linkedin-talent 代码版本无远端落后；检测到本地未提交改动，已保留` | 继续，不覆盖本地改动 |
+| `⚠ ...` | 继续（**不中断流程**）|
 
 > 更新完成后，当前会话继续使用已加载的 SKILL.md，**无需重启**。如果有重大变更，在 welcome.md 后提示用户"本次更新了 X，建议重新发起会话"。
 

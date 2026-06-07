@@ -43,7 +43,7 @@
     }
   },
   "sender_profiles": {
-    "_comment": "可选的 sender 身份切换。Phase 1.5 让用户在 Yujia / Zadie 之间选；不在此列的人需先在此添加。company / company_description / platform_url 是公司层面的固定信息，不可改。",
+    "_comment": "可选的 sender 身份切换。Phase 1 话术轻确认可让用户在 Yujia / Zadie 之间选；不在此列的人需先在此添加。company / company_description / platform_url 是公司层面的固定信息，不可改。",
     "Yujia": {
       "name": "Yujia",
       "title": "Co-founder"
@@ -54,7 +54,7 @@
     }
   },
   "project_config": {
-    "_comment": "每次寻访由 Phase 1.5 填写，作为模板变量注入。sender 字段是公司身份不可改；sender_profile_key 在 Yujia / Zadie 间切换；其他都是单次项目上下文。",
+    "_comment": "每次寻访由 Phase 1 话术轻确认填写，作为模板变量注入。sender 字段是公司身份不可改；sender_profile_key 在 Yujia / Zadie 间切换；其他都是单次项目上下文。",
     "sender_profile_key": "Zadie",
     "template_type": "type1_friendly",
     "topic_specific": "",
@@ -95,7 +95,7 @@
     "use_chinese_when": "candidate name/headline is primarily in Chinese characters"
   },
   "fixed_fields": {
-    "_comment": "明确不可修改字段，Phase 1.5 时向用户说明",
+    "_comment": "明确不可修改字段，Phase 1 话术轻确认时向用户说明",
     "list": [
       "sender.name",
       "sender.title",
@@ -105,7 +105,7 @@
     ]
   },
   "configurable_fields": {
-    "_comment": "Phase 1.5 时向用户确认/调整的字段",
+    "_comment": "Phase 1 话术轻确认时向用户确认/调整的字段",
     "list": [
       "project_config.sender_profile_key（Yujia | Zadie）",
       "project_config.topic_specific",

@@ -9,6 +9,7 @@
 ```
 data/
 ├── dashboard.xlsx                              ← master dashboard（跨批次累计）
+├── strategies/ <role-or-topic>.json            ← 用户保存的岗位/课题策略
 ├── batches/   linkedin_<batchId>.xlsx          ← 单批次结果 Excel
 ├── criteria/  <batchId>.json                   ← Phase 1 解析后的标准
 ├── exports/   raw_<batchId>.json               ← Phase 2 召回原始数据
@@ -41,12 +42,33 @@ data/
 
 跨批次累计写入 `data/dashboard.xlsx`（首次运行自动创建空模板，含 Sheet1 候选人库 + Sheet2 批次索引）。完整列定义见 `lib/dashboard-schema.json`。
 
-合并伪代码见 `phases/07-dashboard-sync.md`。
+同步脚本：
+
+```bash
+node scripts/phase7-sync-dashboard.mjs --batch-id <id>
+```
+
+脚本契约见 `phases/07-dashboard-sync.md`。
+
+### 5. 更新兼容规则
+
+自动更新只更新代码、模板和 schema，不迁移、不覆盖、不删除本地数据。下面这些都属于用户本地状态：
+
+- `data/strategies/`
+- `data/criteria/`
+- `data/exports/`
+- `data/batches/`
+- `data/decisions/`
+- `data/dashboard.xlsx`
+
+`templates/review-dashboard.html` 是固定看板模板，可以随 skill 更新；历史 Excel 和 `data/dashboard.xlsx` 保留在本地，继续用新模板载入。
+
+`scripts/update-skill.sh` 只做 `git fetch` + `git pull --ff-only`；网络失败、本地改动或无法 fast-forward 都不阻断寻访，也不会清理 `data/`。
 
 ## 🎯 核心特性
 
 - **数据不进 GitHub**：`data/` 位于 skill 包内，方便 Dashboard 默认打开；同时被 `.gitignore` 排除，不会被 git 追踪。也可以通过环境变量 `LINKEDIN_TALENT_HOME` 重定向。
-- **路径单一来源**：所有路径在 `lib/paths.js`；批次命名在 `lib/naming.js`；Excel 列契约在 `lib/excel-schema.json`（`schema-check.mjs` 守护）
+- **路径单一来源**：所有 Node 脚本路径在 `lib/paths.js`；shell 管理工具也读取 `LINKEDIN_TALENT_HOME`；批次命名在 `lib/naming.js`；Excel 列契约在 `lib/excel-schema.json`（`schema-check.mjs` 守护）
 - **状态追踪**：通过 `decisions/decisions_<batchId>.json` 是否存在判断批次状态（Draft / Ready）
 - **跨平台**：`stat` 命令在 macOS / Linux 上行为不同，data-manager.sh 已做兼容处理
 

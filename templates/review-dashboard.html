@@ -211,6 +211,11 @@ async function loadExcel(event) {
   if (!file) return;
   if (typeof XLSX === 'undefined') { showToast('SheetJS 未加载，请检查网络连接'); return; }
   const ab = await file.arrayBuffer();
+  loadWorkbookArrayBuffer(ab, file.name);
+  event.target.value = '';
+}
+
+function loadWorkbookArrayBuffer(ab, fileName) {
   const wb = XLSX.read(ab);
   const ws = wb.Sheets['候选人'];
   if (!ws) { showToast('找不到「候选人」工作表'); return; }
@@ -231,7 +236,8 @@ async function loadExcel(event) {
     const yrStr = parts[2]?.trim() || '';
     const [sy, ey] = yrStr.split('-');
     return { company: parts[0]?.trim(), title: parts[1]?.trim(),
-      startYear: parseInt(sy) || null, endYear: (ey === 'now' || ey === '至今') ? null : parseInt(ey) || null };
+      startYear: parseInt(sy) || null, endYear: (ey === 'now' || ey === '至今') ? null : parseInt(ey) || null,
+      desc: parts.slice(3).join(' | ').trim() };
   });
 
   const loaded = rows.slice(1).filter(r => r[col['Vanity']] || r[col['姓名']]).map(r => {
@@ -239,6 +245,7 @@ async function loadExcel(event) {
     const tierNum = parseInt(tierRaw.match(/\d/)?.[0]) || 0;
     const targetPos = parsePositions(r[col['目标公司经历']]);
     const otherPos  = parsePositions(r[col['其他经历']]);
+    const fullPos = parsePositions(r[col['完整经历']]);
     return {
       name: String(r[col['姓名']] || ''),
       current_title: String(r[col['当前职位']] || ''),
@@ -257,11 +264,11 @@ async function loadExcel(event) {
       urn: String(r[col['URN']] || ''),
       connect_status: String(r[col['Connect状态']] || ''),
       location: String(r[col['地点']] || ''),
-      positions: targetPos.concat(otherPos),
+      positions: fullPos.length ? fullPos : targetPos.concat(otherPos),
     };
   });
 
-  if (!loaded.length) { showToast('未解析到候选人数据'); event.target.value = ''; return; }
+  if (!loaded.length) { showToast('未解析到候选人数据'); return; }
 
   // Replace in-place so existing const binding stays valid
   CANDIDATES.length = 0;
@@ -277,10 +284,24 @@ async function loadExcel(event) {
   document.getElementById('detail').className = 'empty';
   document.getElementById('detail').innerHTML = '← 从左侧选择候选人';
   // Update topbar meta
-  document.getElementById('dashboard-meta').innerHTML = `${esc(file.name)} · 共 <strong>${loaded.length}</strong> 人`;
+  document.getElementById('dashboard-meta').innerHTML = `${esc(fileName)} · 共 <strong>${loaded.length}</strong> 人`;
   renderList();
-  showToast(`已加载「${file.name}」· ${loaded.length} 位候选人`);
-  event.target.value = '';
+  showToast(`已加载「${fileName}」· ${loaded.length} 位候选人`);
+}
+
+async function loadExcelFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const excelUrl = params.get('excel');
+  if (!excelUrl) return;
+  if (typeof XLSX === 'undefined') { showToast('SheetJS 未加载，请检查网络连接'); return; }
+  try {
+    const resp = await fetch(excelUrl, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ab = await resp.arrayBuffer();
+    loadWorkbookArrayBuffer(ab, params.get('name') || 'latest.xlsx');
+  } catch (e) {
+    showToast(`自动加载 Excel 失败：${e.message}`);
+  }
 }
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
@@ -352,7 +373,7 @@ function selectCandidate(vanity) {
   ).join('');
 
   // Experience
-  const expHtml = pos.slice(0, 7).map(p => {
+  const expHtml = pos.map(p => {
     const start = p.startYear || '?';
     const end = p.endYear || '至今';
     const dur = ((p.endYear || new Date().getFullYear()) - (p.startYear || new Date().getFullYear()));
@@ -502,6 +523,7 @@ function esc(s) {
 
 renderList();
 if (CANDIDATES.length > 0) selectCandidate(CANDIDATES[0].vanity);
+loadExcelFromUrl();
 </script>
 </body>
 </html>
