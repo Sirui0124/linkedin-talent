@@ -1,5 +1,7 @@
 # Phase 3 · Profile + 硬筛 + 评分（L2 + L2.5 + L3）
 
+本文件的 `L2/L2.5/L3`、`subagent` 是内部实现术语。面向用户的播报和解释统一说"Profile 拉取"、"基础筛选"、"规则评分"、"AI 评分"。
+
 **实现入口**：
 - `node scripts/phase3-profile-score.mjs --batch-id <id>`：完成 Profile 拉取、L2/L2.5，并产出 `phase3_subagent_input_<id>.json`
 - `node scripts/phase3-apply-subagent-scores.mjs --batch-id <id> --scores <scores.json>`：把 Codex subagent 的 L3 结果合并回 phase3 输出

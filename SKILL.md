@@ -29,14 +29,14 @@ linkedin-talent/
 ├── SKILL.md                            ← 本文件，编排
 ├── package.json                        ← 声明 xlsx 依赖（首次安装跑 npm install）
 ├── phases/
-│   ├── 01-parse-criteria.md            解析三层结构（搜索/硬筛/评分）
+│   ├── 01-parse-criteria.md            解析内部策略结构（搜索/筛选/评分）
 │   ├── 02-search-recall.md             搜索脚本契约与边界（实现见 phase2 mjs）
-│   ├── 03-filter-and-score.md          L3 LLM 评分指令（L2/L2.5 实现在 phase3 mjs）
+│   ├── 03-filter-and-score.md          AI 评分指令（L2/L2.5 实现在 phase3 mjs）
 │   ├── 05-review.md                    Review HTML + 解析剪贴板 JSON
 │   └── 07-dashboard-sync.md            Master Dashboard 脚本契约
 ├── templates/
 │   ├── welcome.md                      开场欢迎语（4 步流程总览）
-│   ├── parse-mirror.md                 Phase 1 策略校对渲染骨架
+│   ├── parse-mirror.md                 策略校对渲染骨架
 │   ├── parse-mirror-example.md         完整示例（TSMC/Ruthenium）
 │   ├── broadcast.md                    全程进度播报短句库
 │   └── review-dashboard.html           Phase 5 Review HTML 模板
@@ -70,6 +70,8 @@ linkedin-talent/
 
 ⏸ 标志表示**必须等用户确认才继续**。
 
+**用户输出边界**：`Phase 1/2/3`、`L1/L2/L3`、`criteria`、`strategy_json_path`、`subagent`、`calibration/full_run` 等是内部编排术语。面向用户时统一说"策略校对 / 搜索 / 名单确认 / 发送"、"核心搜索词 / 基础筛选 / AI 评分"、"本地策略文件"、"小样本校准 / 直接扩池"。不要在用户回复、进度播报、示例或确认稿里暴露内部编号和 schema 字段名。
+
 ```
 Phase 0 · 环境检查        → bash scripts/doctor.sh
    ↓ 退出码:
@@ -93,7 +95,7 @@ Phase 3 · Profile + 评分    → bash: node scripts/phase3-profile-score.mjs -
 Phase 4 · Excel + 话术预览  → bash: node scripts/phase4-export-excel.mjs --batch-id <id>
    · 列契约见 lib/excel-schema.json；话术模板见 lib/connect-templates.json
 Phase 5 · Review Dashboard → phases/05-review.md
-   ↓ 自动 open 固定 Dashboard，用户载入当批 Excel，确认人选和逐人话术预览
+   ↓ 自动 open 固定 Dashboard 并默认载入当批 Excel，用户确认人选和逐人话术预览
    ⏸ 等用户粘贴 decisions JSON
 Phase 6 · 发送 Connect      → 直接调 lib/voyager.js 的 sendConnectScript + parseConnectResult
    · 间隔 6-10s、错误码处理详见 lib/voyager.js 与 lib/safety.json
@@ -128,10 +130,10 @@ Phase 7 · Dashboard 同步    → bash: node scripts/phase7-sync-dashboard.mjs 
    - 开放型专家需求先拆 `personas`：先判断用户真正需要哪几类人，再为每类人设计搜索入口和筛选口径
    - "X 的销售渠道/channel/partner" 先判定 `intent.view`：到底要 X 原厂内部销售/渠道，还是 X 的外部渠道商/合作伙伴公司；不能因为出现 X 就只找 X 员工
    - partner/channel/supplier/customer/construction 类需求先做 `ecosystem_company_discovery`：这是 Phase 1 的背景调研，必须在用户确认前完成；先找出 top 生态/合作伙伴公司，再用公司名找人；泛关系词只做 fallback
-   - Phase 1 面向用户只输出精简校对版：投研预判断、课题与问题、交付一句话、2-3 类目标人群、已发现的 partner 公司池、话术主旨和 1 个参考模板、详细策略 JSON 路径。硬筛/权重/完整搜索矩阵写入 `data/criteria/<batchId>.json`，不默认展开。
+   - 面向用户只输出精简校对版：投研预判断、课题与问题、交付一句话、2-3 类目标人群、已发现的 partner 公司池、话术主旨和 1 个参考模板、本地策略文件路径。硬筛/权重/完整搜索矩阵写入 `data/criteria/<batchId>.json`，不默认展开。
    - 不要对用户说 "Phase 1.4" / "Phase 1.5" 这类内部编号；用户只需要看到"策略校对"、"搜索"、"名单确认"、"发送"这些自然步骤。
    - 话术确认并入 Phase 1：只确认 sender/rate/对外模糊话题/沟通主旨/一个参考模板。不要在搜索前要求用户二次确认多个话术版本。筛选完成后，Phase 4/5 必须生成逐人 Connect note 预览，用户确认人选和话术后 Phase 6 才能发送。
-   - 若 `intent.view=channel_partners` 或 `ecosystem_company_discovery.required=true`，`target_companies` 不得留空或写"待查/TBD"；必须先通过 partner locator、marketplace、case studies、awards、联合新闻稿、招聘 JD、行业榜单等找出真实公司名，并把这些公司名直接写入 L1 搜索关键词（如 `Accenture Salesforce`、`Deloitte Agentforce`）。
+   - 若 `intent.view=channel_partners` 或 `ecosystem_company_discovery.required=true`，`target_companies` 不得留空或写"待查/TBD"；必须先通过 partner locator、marketplace、case studies、awards、联合新闻稿、招聘 JD、行业榜单等找出真实公司名，并把这些公司名直接写入核心搜索词（如 `Accenture Salesforce`、`Deloitte Agentforce`）。
    - 多问题需求先建 `hard_filters.topic_groups`，区分必需覆盖和加分/复核；不要把所有词混成一个大 OR
    - 最独特、最专业的 1-2 个词 → L1 `search_keywords.primary`（如 "BEOL"、"Ruthenium"）
    - primary 召回未达标时，才继续跑 `search_keywords.secondary` / `fallback`
@@ -143,7 +145,7 @@ Phase 7 · Dashboard 同步    → bash: node scripts/phase7-sync-dashboard.mjs 
    - ❌ L2 写"TSMC 优先 Intel 次之" → 这是排序逻辑，应放 L3 的 `company_match` 维度
    - ❌ L3 用 LLM 判断"是不是 marketing" → 应放 L2 的 `must_not_have_any_kw`
 2. **关键节点才停顿** — Phase 1 策略校对和 Phase 5 名单/话术确认必须等用户显式确认；其余阶段播报式推进，不要每页报。
-3. **播报轻松，不要"工作汇报"** — 动词 + 数字 + 短句，参考 templates/broadcast.md。避免百分比进度条、机械文案。
+3. **播报轻松，不要"工作汇报"** — 动词 + 数字 + 短句，参考 templates/broadcast.md。避免百分比进度条、机械文案，尤其不要把内部阶段名、L1/L2/L3、subagent、schema 字段名写给用户。
 
 ## 🚀 快速开始
 
