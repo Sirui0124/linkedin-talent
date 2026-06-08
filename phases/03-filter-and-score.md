@@ -1,16 +1,19 @@
 # Phase 3 · Profile + 硬筛 + 评分（L2 + L2.5 + L3）
 
-**实现入口**：`bash node scripts/phase3-profile-score.mjs --batch-id <id>`
+**实现入口**：
+- `node scripts/phase3-profile-score.mjs --batch-id <id>`：完成 Profile 拉取、L2/L2.5，并产出 `phase3_subagent_input_<id>.json`
+- `node scripts/phase3-apply-subagent-scores.mjs --batch-id <id> --scores <scores.json>`：把 Codex subagent 的 L3 结果合并回 phase3 输出
 
 mjs 已实现：
 - **3.0 预筛**（无 API，基于搜索卡片 `headline/location` + `hits`，由当批 criteria 驱动）—— `preFilter()`
 - **3.0b Profile 拉取**（间隔由 `humanDelay()` 控制，模拟人类停顿）—— `getProfileScript()`
 - **3.1 L2 硬筛**（公司 / 必含词 / 排除词 / title 模糊匹配，全部 AND，宽松策略）—— `hardFilter()`
 - **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `target_role_duration`/`seniority_focus` / `bonus`）—— `ruleScore()`
+- **3.2 Subagent 输入包导出**—— `phase3_subagent_input_<id>.json`
 - **断点续跑** `--resume <partial.json>`、定期写中间结果（每 10 人）
 - **错误码**：401/403/429 → 整批立即停止；其他非 200 仅丢弃单人
 
-本文件**只描述需要 LLM 推理的部分**——即 L3 评分（subagent 模式）与最终 JSON 契约。
+本文件**只描述需要 LLM 推理的部分**——即 L3 评分（Codex subagent 模式）与最终 JSON 契约。
 
 ## 3.0 搜索卡片轻量预筛
 
@@ -30,6 +33,8 @@ mjs 已实现：
 - 下方 50 人：直接用 mjs 的规则评分结果（`scored_by="rule"`），跳过 LLM
 - L2.5 规则分流（可选优化）：rule_score ≥ 80 直接 Tier 1；≤ 25 直接 Tier 3；中间段 26-79 才进 L3 —— 可减少 LLM 调用 ~35%
 
+当需要人工强制对小样本也走 L3 时，可在 Phase 3 首轮执行时加 `--force-subagent`，让脚本为全部通过 L2 的候选人导出 subagent 输入包。
+
 ## L3 评分 prompt 模板（每人一次调用）
 
 ```
@@ -46,6 +51,7 @@ mjs 已实现：
 - 硬筛命中不等于高分。L2 已确认"有目标公司/岗位信号"后，L3 必须继续判断命中质量。
 - 岗位寻访默认必须评估目标公司 + 目标岗位累计时长（`target_role_duration` 或语义等价物）。
 - 目标岗时长短、刚入职、仅实习、起止年缺失，应降权；不能因为 company_match 和 topic_depth 都命中就直接给高总分。
+- production shortlist 可以包含 backup：Tier 1 要能直接回答核心问题；Tier 2 可以是方向正确但证据不完整的补充验证人选；Tier 3 是弱相关备选。必须把缺失证据写进 missed_signals。
 - reasoning / highlight_for_outreach 优先引用最相关的目标公司目标岗位经历，不要默认取第一段当前经历。
 
 【候选人 Profile】
@@ -122,9 +128,12 @@ mjs 已实现：
 - highlight_for_outreach 必填，复用规则见 lib/connect-templates.json
 ```
 
-### 模型路由
+### 执行方式
 
-优先级 `claude-haiku-4-5-20251001` > `claude-sonnet-4-6` > 主模型 fallback；通过 `Agent({ subagent_type: "general-purpose", model: "..." })` 指定。
+- 不再通过本地 Anthropic API 直连打分。
+- 由 Codex 主 agent 读取 `phase3_subagent_input_<id>.json`，启动 subagent 完成 L3。
+- subagent 评分结果保存为 `phase3_subagent_scores_<id>.json`。
+- 再运行 `node scripts/phase3-apply-subagent-scores.mjs --batch-id <id> --scores <scores.json>`，把 L3 结果合并回正式 phase3 输出。
 
 ## Tier 计算
 

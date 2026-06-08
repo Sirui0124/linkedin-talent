@@ -2,5 +2,6 @@
 node_modules/
 data/
 _test_cases/
+_test_results/
 reports/
 ~$*.xlsx

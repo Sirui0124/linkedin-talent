@@ -38,6 +38,8 @@ node scripts/phase2-search-recall.mjs --batch-id <id> --dry-run
 2. 没有 matrix 但有 `target_companies` 时，按 `primary keyword × target_companies × current/past company` 搜。
 3. 没有公司池时，按纯关键词搜。
 
+搜索词应尽量长得像 `company + role + ecosystem position (+ topic)`，而不是 `company + generic product`。如果 primary 已经退化成单纯 `Snowflake` / `Cloudflare` / `ServiceNow`，说明 Phase 1 还不够收敛。
+
 公司 ID 能从 `lib/config.js` 找到时使用 LinkedIn `currentCompany` / `pastCompany` filter；找不到时退化为 `company name + keyword` 纯关键词搜索，并在 dry-run 里标记 `company_id_missing_keyword_fallback`。
 
 ## 输出

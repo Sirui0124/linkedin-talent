@@ -18,12 +18,13 @@
 
 import { execFileSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
-import { homedir } from 'os';
+import { resolve, dirname, basename } from 'path';
 import {
-  rawCandidatesPath, criteriaPath, phase3JsonPath, ensureDataDirs,
+  rawCandidatesPath, criteriaPath, phase3JsonPath,
+  phase3SubagentInputPath, phase3SubagentScoresPath,
+  ensureDataDirs,
 } from '../lib/paths.js';
-import { isValidBatchId } from '../lib/naming.js';
+import { isValidBatchId, parseBatchId } from '../lib/naming.js';
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 function parseArgs() {
@@ -32,6 +33,9 @@ function parseArgs() {
     batchId: null, input: null, criteria: null, output: null, resume: null,
     useLlm: process.env.LINKEDIN_TALENT_LLM !== '0',
     llmOnly: false,
+    scores: null,
+    forceSubagent: false,
+    subagentThreshold: Number(process.env.LINKEDIN_TALENT_SUBAGENT_THRESHOLD || 50),
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--batch-id') opts.batchId  = args[++i];
@@ -41,6 +45,8 @@ function parseArgs() {
     if (args[i] === '--resume')   opts.resume   = resolve(args[++i]);
     if (args[i] === '--no-llm')   opts.useLlm = false;
     if (args[i] === '--llm-only') opts.llmOnly = true;
+    if (args[i] === '--scores')   opts.scores   = resolve(args[++i]);
+    if (args[i] === '--force-subagent') opts.forceSubagent = true;
   }
   // 通过 batch-id 自动展开
   if (opts.batchId) {
@@ -61,6 +67,7 @@ function parseArgs() {
     console.error('[error] --output 缺失，且未提供 --batch-id 来推断');
     process.exit(1);
   }
+  opts.batchId ??= parseBatchId(opts.output) || parseBatchId(opts.input) || null;
   ensureDataDirs();
   return opts;
 }
@@ -337,36 +344,7 @@ function ruleReasoning(profile, dimScores, dims, criteria) {
   };
 }
 
-// ── L3 LLM score ─────────────────────────────────────────────────────────────
-function loadLocalSecretsEnv() {
-  const secretPath = resolve(homedir(), '.config/ai-secrets/env.zsh');
-  if (!existsSync(secretPath)) return;
-  const text = readFileSync(secretPath, 'utf8');
-  for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=(.*)$/);
-    if (!m) continue;
-    const key = m[1];
-    if (!/^ANTHROPIC_/.test(key) || process.env[key]) continue;
-    let val = m[2].trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1);
-    }
-    process.env[key] = val;
-  }
-}
-
-function getLlmConfig() {
-  loadLocalSecretsEnv();
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
-  return {
-    provider: 'anthropic',
-    apiKey,
-    baseUrl: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, ''),
-    model: process.env.LINKEDIN_TALENT_LLM_MODEL || process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
-  };
-}
-
+// ── L3 Subagent score ────────────────────────────────────────────────────────
 function positionsText(positions) {
   return (positions || []).slice(0, 12).map(p =>
     `${p.company || ''} | ${p.title || ''} | ${p.startYear || '?'}-${p.endYear || 'now'} | ${(p.desc || '').slice(0, 180)}`
@@ -393,7 +371,8 @@ ${dims.map(d => `- ${d.key} (${d.label}, weight ${d.weight}): ${d.description}`)
 
 【评分口径】
 100 = 直接高度匹配；75 = 明显匹配；50 = 部分相关但证据不足；25 = 弱相关；0 = 不相关。
-必须特别区分泛 power / 泛 ADI 经历和能验证 Google/TPU/AI infrastructure power 的强信号。
+如果候选人缺少直接回答核心问题的证据，但具备相关生态、实践或客户接触经验，可以作为 Tier 2/3 backup；不能因为公司或关键词接近就给 Tier 1。
+优先判断候选人是否具备 ${asArray(criteria.must_answer_evidence).join(' / ') || 'direct evidence for the core research questions'}。
 输出 score 必须按权重加权；权重为：${JSON.stringify(weights)}。
 
 【候选人 Profile】
@@ -429,25 +408,18 @@ function extractJson(text) {
   throw new Error('LLM response did not contain JSON');
 }
 
-async function callAnthropic(config, prompt) {
-  const resp = await fetch(`${config.baseUrl}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': config.apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: config.model,
-      max_tokens: 1200,
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-  const body = await resp.text();
-  if (!resp.ok) throw new Error(`LLM HTTP ${resp.status}: ${body.slice(0, 200)}`);
-  const data = JSON.parse(body);
-  return (data.content || []).map(x => x.text || '').join('\n');
+function defaultSubagentInputPath(opts) {
+  if (opts.batchId) return phase3SubagentInputPath(opts.batchId);
+  const dir = dirname(opts.output);
+  const base = basename(opts.output).replace(/^phase3_/, '').replace(/\.json$/, '');
+  return resolve(dir, `phase3_subagent_input_${base}.json`);
+}
+
+function defaultSubagentScoresPath(opts) {
+  if (opts.batchId) return phase3SubagentScoresPath(opts.batchId);
+  const dir = dirname(opts.output);
+  const base = basename(opts.output).replace(/^phase3_/, '').replace(/\.json$/, '');
+  return resolve(dir, `phase3_subagent_scores_${base}.json`);
 }
 
 function normalizeLlmScore(parsed, criteria, fallback) {
@@ -473,48 +445,122 @@ function normalizeLlmScore(parsed, criteria, fallback) {
   };
 }
 
-async function scoreCandidateWithLlm(candidate, criteria, config) {
-  const prompt = buildLlmPrompt(candidate, criteria);
-  const text = await callAnthropic(config, prompt);
-  return normalizeLlmScore(extractJson(text), criteria, candidate);
+function buildSubagentPayload(results, criteria, opts) {
+  const shouldRun = opts.forceSubagent || results.passed.length >= opts.subagentThreshold;
+  if (!opts.useLlm) {
+    return { shouldRun: false, summary: { mode: 'subagent', status: 'disabled', attempted: 0, succeeded: 0, skipped: results.passed.length } };
+  }
+  if (!shouldRun) {
+    return {
+      shouldRun: false,
+      summary: {
+        mode: 'subagent',
+        status: 'below_threshold',
+        attempted: 0,
+        succeeded: 0,
+        skipped: results.passed.length,
+        threshold: opts.subagentThreshold,
+      },
+    };
+  }
+
+  const payload = {
+    batch_id: opts.batchId || null,
+    created_at: new Date().toISOString(),
+    scoring_dimensions: criteria.scoring_dimensions || [],
+    topic_specific: criteria.topic_specific || '',
+    research_context: criteria.research_precheck?.research_context || '',
+    research_questions: criteria.research_questions || [],
+    candidates: results.passed.map(candidate => ({
+      vanity: candidate.vanity,
+      name: candidate.name,
+      current_company: candidate.current_company || '',
+      current_title: candidate.current_title || '',
+      headline: candidate.headline || '',
+      location: candidate.location || '',
+      positions: candidate.positions || [],
+      educations: candidate.educations || [],
+      skills: candidate.skills || [],
+      hits: candidate.hits || [],
+      fallback_rule_score: candidate.score,
+      fallback_rule_tier: candidate.tier,
+      fallback_scores_breakdown: candidate.scores_breakdown || [],
+      fallback_reasoning: candidate.reasoning || '',
+      prompt: buildLlmPrompt(candidate, criteria),
+    })),
+    output_schema: {
+      candidate_results: [
+        {
+          vanity: 'string',
+          scores_breakdown: [{ key: 'string', score: 50 }],
+          score: 50,
+          tier: 2,
+          reasoning: 'string',
+          matched_signals: ['string'],
+          missed_signals: ['string'],
+          highlight_for_outreach: 'string',
+        },
+      ],
+    },
+  };
+
+  const outPath = defaultSubagentInputPath(opts);
+  writeFileSync(outPath, JSON.stringify(payload, null, 2));
+  return {
+    shouldRun: true,
+    inputPath: outPath,
+    summary: {
+      mode: 'subagent',
+      status: 'pending',
+      attempted: results.passed.length,
+      succeeded: 0,
+      skipped: 0,
+      input_path: outPath,
+      expected_scores_path: defaultSubagentScoresPath(opts),
+    },
+  };
 }
 
-async function applyLlmScores(results, criteria, opts) {
+function applySubagentScores(results, criteria, opts) {
   if (!opts.useLlm) {
     console.log('[llm] 已跳过 (--no-llm 或 LINKEDIN_TALENT_LLM=0)');
     return { attempted: 0, succeeded: 0, skipped: results.passed.length };
   }
-  const config = getLlmConfig();
-  if (!config) {
-    console.warn('[llm] 未找到 ANTHROPIC_API_KEY，保留规则评分');
-    return { attempted: 0, succeeded: 0, skipped: results.passed.length, reason: 'missing_api_key' };
+  if (!opts.scores || !existsSync(opts.scores)) {
+    throw new Error(`subagent scores 文件不存在: ${opts.scores || '(missing --scores)'}`);
   }
-  let attempted = 0;
+  const raw = readFileSync(opts.scores, 'utf8');
+  const parsed = extractJson(raw);
+  const candidateResults = asArray(parsed.candidate_results || parsed.results || parsed);
+  const scoreMap = new Map(candidateResults.map(item => [item.vanity, item]));
+  let attempted = results.passed.length;
   let succeeded = 0;
-  let skipped = 0;
   for (const c of results.passed) {
-    if (c.scored_by === 'llm' && !opts.llmOnly) {
-      skipped++;
+    const item = scoreMap.get(c.vanity);
+    process.stdout.write(`[llm/apply] ${c.name} ... `);
+    if (!item) {
+      c.llm_error = 'subagent result missing';
+      console.log('fallback rule (missing)');
       continue;
     }
-    attempted++;
-    process.stdout.write(`[llm ${attempted}/${results.passed.length}] ${c.name} ... `);
     try {
-      const llm = await scoreCandidateWithLlm(c, criteria, config);
-      Object.assign(c, llm);
+      const llm = normalizeLlmScore(item, criteria, c);
+      Object.assign(c, llm, { llm_error: null });
       succeeded++;
       console.log(`score=${c.score} tier=${c.tier}`);
     } catch (e) {
       c.llm_error = e.message;
       console.log(`fallback rule (${e.message})`);
-      if (/auth|401|403|invalid.?api.?key/i.test(e.message)) {
-        console.warn('[llm] 认证类错误，停止本轮 LLM 重试，保留其余规则评分');
-        break;
-      }
     }
-    await sleep(250);
   }
-  return { attempted, succeeded, skipped };
+  return {
+    mode: 'subagent',
+    status: 'applied',
+    attempted,
+    succeeded,
+    skipped: attempted - succeeded,
+    scores_path: opts.scores,
+  };
 }
 
 // ── Profile fetch ─────────────────────────────────────────────────────────────
@@ -566,10 +612,10 @@ async function main() {
     }
     const current = JSON.parse(readFileSync(opts.output, 'utf8'));
     const results = { passed: current.passed || [], failed: current.failed || [] };
-    const llm = await applyLlmScores(results, criteria, opts);
+    const llm = applySubagentScores(results, criteria, opts);
     const output = summarize(results, current.summary?.total || results.passed.length + results.failed.length, current.summary?.pre_dropped || 0, current.summary?.stop_reason, { llm });
     writeFileSync(opts.output, JSON.stringify(output, null, 2));
-    console.log('\n── LLM 重评完成 ───────────────────────────────');
+    console.log('\n── Subagent 重评完成 ───────────────────────────');
     console.log(`LLM成功: ${llm.succeeded}/${llm.attempted}`);
     console.log(`输出: ${opts.output}`);
     return;
@@ -669,8 +715,9 @@ async function main() {
 
   if (stopReason) console.error(`\n[STOP] ${stopReason}`);
 
-  const llm = stopReason ? { attempted: 0, succeeded: 0, skipped: results.passed.length, reason: 'profile_fetch_stopped' }
-    : await applyLlmScores(results, criteria, opts);
+  const llm = stopReason
+    ? { mode: 'subagent', status: 'profile_fetch_stopped', attempted: 0, succeeded: 0, skipped: results.passed.length, reason: 'profile_fetch_stopped' }
+    : buildSubagentPayload(results, criteria, opts).summary;
 
   const output = summarize(results, candidates.length, preDropped, stopReason, { llm });
   writeFileSync(opts.output, JSON.stringify(output, null, 2));
@@ -682,7 +729,11 @@ async function main() {
   const t2 = results.passed.filter(c => c.tier === 2).length;
   const t3 = results.passed.filter(c => c.tier === 3).length;
   console.log(`Tier分布: T1=${t1}  T2=${t2}  T3=${t3}`);
-  if (llm?.attempted) console.log(`LLM评分: ${llm.succeeded}/${llm.attempted}`);
+  if (llm?.status === 'pending') {
+    console.log(`Subagent评分待执行: ${llm.input_path}`);
+  } else if (llm?.attempted) {
+    console.log(`LLM评分: ${llm.succeeded}/${llm.attempted}`);
+  }
   console.log(`输出: ${opts.output}`);
   if (stopReason) console.log(`⚠️  ${stopReason}`);
 }

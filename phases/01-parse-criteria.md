@@ -41,6 +41,9 @@ research_questions:
   - {id: q1, ask: "Q1 consumption 增长情况", must_cover: true}
   - {id: q2, ask: "Q2 增长怎么看", must_cover: true}
 
+must_answer_evidence:
+  - "partner pipeline / sampled numbers / customer selection / consumption visibility / marketplace motion"
+
 personas:
   - label: "Snowflake 外部渠道/合作伙伴"
     priority: 1
@@ -119,6 +122,7 @@ scoring_dimensions:
 - 把用户原文拆成 1-6 个 `research_questions`，保留公司、时间、地域、产品、指标。
 - 标出 `must_cover`：必须覆盖的问题影响硬筛和排序；可选问题进入加分或访谈确认。
 - 多问题不要混成一个大 OR。像 Snowflake case 里，consumption/GTM 是必需，Cortex/Snowflake Intelligence/Snowpark/Iceberg 是产品覆盖度和加分。
+- 同时补一行 `must_answer_evidence`：用最短的话写清楚"什么证据才能证明这个人真能回答问题"，例如 `partner pipeline`、`sampled numbers`、`customer selection`、`consumption visibility`、`marketplace motion`。后续 L2/L3 都围绕这行判断，而不是只看关键词。
 
 ### 再判定"谁能回答"
 
@@ -201,7 +205,7 @@ Snowflake case 的正确理解：Snowflake 是 anchor，不等于候选人必须
 
 搜索词从 persona 反推，不照抄用户所有词：
 
-- `primary`: 最能定位人的组合。内部原厂需求通常是公司/技术锚点 + 角色词；partner 需求必须优先是 partner 公司 + anchor/topic，例如 `Accenture Snowflake`、`Deloitte Cortex`。
+- `primary`: 最能定位人的组合。内部原厂需求通常是公司/技术锚点 + 角色词；partner 需求必须优先是 `company + role + ecosystem position`，再补 anchor/topic，例如 `Accenture Snowflake practice lead`、`Deloitte Cortex alliance`、`CDW Cloudflare channel sales`。不要一上来只搜 `Snowflake`、`Cloudflare`、`ServiceNow` 这种宽词。
 - `secondary`: 关键产品/技术词，用于补池，例如 `Cortex`、`Snowpark`、`Iceberg`。
 - `fallback`: 更宽的生态词，例如 `AI Data Cloud`、`Snowflake practice`。
 
@@ -224,6 +228,7 @@ L2 只做确定性判断：
 - Title 命中：是否是 partner、alliance、sales、solution、architect、GTM、practice 等相关角色。
 - 主题组命中：`required=true` 的组必须命中；`required=false` 的组不淘汰。
 - 排除词默认空。只有明显错位才加，例如 retail、recruiter、student。
+- 若 `intent.view=channel_partners`，优先同时看到两类证据：`vendor/topic evidence` + `commercial/channel evidence`。只会产品实施、架构或开发的人可以作为 backup 进入名单，但 L3 必须降到 Tier 2/3，并写清楚缺少商业侧证据。
 
 注意可拿到的 LinkedIn 字段有限：搜索卡片阶段主要是 `name/headline/location/profile_url/vanity/urn/connectionDegree`；Profile 阶段主要是 `headline/summary/positions/educations/skills`。不要把无法稳定拿到的精确字段写成硬筛条件，例如真实 quota、具体客户 consumption、精确离职月份。
 
@@ -237,6 +242,8 @@ L2 只做确定性判断：
 - 资历是否足以接触客户、pipeline、产品反馈。
 
 不要用"可触达度"、"知名度"这类和问题无关的维度填空。
+
+production shortlist 不是只保留完美专家：Tier 1 是能直接回答核心问题的人；Tier 2 是方向正确、可作为补充验证或转介绍入口的人；Tier 3 是弱相关备选。宁可清楚分层，也不要把 backup 伪装成主专家。
 
 ## 输出规则
 

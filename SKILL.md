@@ -88,7 +88,8 @@ Phase 2 · 搜索召回         → bash: node scripts/phase2-search-recall.mjs 
    · 用 --dry-run 可先检查搜索计划，不调用 LinkedIn API
 Phase 3 · Profile + 评分    → bash: node scripts/phase3-profile-score.mjs --batch-id <id>
    · L2 硬筛 + L2.5 规则评分均在 mjs 中实现；
-   · ≥50 人触发 subagent 跑 L3 LLM 评分，prompt 与 JSON 契约见 phases/03-filter-and-score.md
+   · 需要 L3 时，mjs 产出 `phase3_subagent_input_<id>.json`，由 Codex subagent 评分后再执行 `node scripts/phase3-apply-subagent-scores.mjs --batch-id <id> --scores <scores.json>`
+   · ≥50 人默认触发 subagent，prompt 与 JSON 契约见 phases/03-filter-and-score.md
 Phase 4 · Excel + 话术预览  → bash: node scripts/phase4-export-excel.mjs --batch-id <id>
    · 列契约见 lib/excel-schema.json；话术模板见 lib/connect-templates.json
 Phase 5 · Review Dashboard → phases/05-review.md
