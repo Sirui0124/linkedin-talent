@@ -135,14 +135,15 @@ Phase 7 · Dashboard 同步    → bash: node scripts/phase7-sync-dashboard.mjs 
    - 用户代表股票投资研究机构或专家访谈项目时，先把短需求翻译成可能的 investment thesis：锚点公司/股票、被验证的业务线、可能的收入或设计导入催化、客户/供应商/竞品关系、需要的证据类型。追问必须先展示这层理解，再问少数会改变候选池的问题。
    - 先拆 `research_questions` 和 `personas`：明确用户要问什么、谁能回答、Profile 上需要什么证据
    - 核心不确定点进入 `intent.clarify`：会改变候选池边界的问题必须先问，不要边猜边搜
-   - 先定 `delivery_mode`：用户说 "3 channel experts/partners" 这类数量时，指最终访谈目标人数，不是搜索人数；校准模式搜 100-200 人并返回 10 人，一步到位搜 300-500+ 人并筛 50-100 人，供后续 connect 70-80 人换取 2-3 个有效访谈
+   - 先定 `delivery_mode`：用户说 "2 experts"、"3 channel experts/partners" 这类数量时，指最终成功建联/访谈目标人数，不是搜索人数或 shortlist 数；校准模式搜 100-200 人并返回 10 人，一步到位搜 300-500+ 人并筛 50-100 人，供后续 connect 80-100 人换取 2-3 个有效访谈
    - 开放型专家需求先拆 `personas`：先判断用户真正需要哪几类人，再为每类人设计搜索入口和筛选口径
    - "X 的销售渠道/channel/partner" 先判定 `intent.view`：到底要 X 原厂内部销售/渠道，还是 X 的外部渠道商/合作伙伴公司；不能因为出现 X 就只找 X 员工
    - partner/channel/supplier/customer/construction 类需求先做 `ecosystem_company_discovery`：这是 Phase 1 的背景调研，必须在用户确认前完成；先找出 top 生态/合作伙伴公司，再用公司名找人；泛关系词只做 fallback
    - 面向用户只输出精简校对版：投研预判断、课题与问题、交付一句话、2-3 类目标人群、已发现的 partner 公司池、话术主旨和 1 个参考模板、本地策略文件路径。硬筛/权重/完整搜索矩阵写入 `data/criteria/<batchId>.json`，不默认展开。
    - 不要对用户说 "Phase 1.4" / "Phase 1.5" 这类内部编号；用户只需要看到"策略校对"、"搜索"、"名单确认"、"发送"这些自然步骤。
    - 话术确认并入 Phase 1：只确认 sender/rate/对外模糊话题/沟通主旨/一个参考模板。不要在搜索前要求用户二次确认多个话术版本。筛选完成后，Phase 4/5 必须生成逐人 Connect note 预览，用户确认人选和话术后 Phase 6 才能发送。
-   - 若 `intent.view=channel_partners` 或 `ecosystem_company_discovery.required=true`，`target_companies` 不得留空或写"待查/TBD"；必须先通过 partner locator、marketplace、case studies、awards、联合新闻稿、招聘 JD、行业榜单等找出真实公司名，并把这些公司名直接写入核心搜索词（如 `Accenture Salesforce`、`Deloitte Agentforce`）。
+   - 若 `intent.view=channel_partners` 或 `ecosystem_company_discovery.required=true`，`target_companies` 不得留空或写"待查/TBD"；必须先通过 partner locator、marketplace、case studies、awards、联合新闻稿、招聘 JD、行业榜单等找出真实公司名；公开预研词只用于找公司/项目线索，不能原样当 LinkedIn 搜索词，LinkedIn 搜索词必须改写成 `公司/机构 + 职能/岗位/设施类型`（如 `Accenture Snowflake practice`、`Deloitte Agentforce alliance`、`ARCO mission critical`）。
+   - LinkedIn 搜索计划必须体现"公司 + 人才资料词"：有 LinkedIn company ID 的公司可用 `keyword + currentCompany/pastCompany filter`，dry-run 会显示为 `keyword · currentCompany · 公司名`；没有 company ID 时必须退化为完整 `公司名 + keyword`，不能因为公司名里含 `Power/Systems/Modules/Semiconductor/Devices` 等泛词就误判已经带了公司。
    - 多问题需求先建 `hard_filters.topic_groups`，区分必需覆盖和加分/复核；不要把所有词混成一个大 OR
    - 最独特、最专业的 1-2 个词 → L1 `search_keywords.primary`（如 "BEOL"、"Ruthenium"）
    - primary 召回未达标时，才继续跑 `search_keywords.secondary` / `fallback`

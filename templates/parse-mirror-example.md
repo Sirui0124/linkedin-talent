@@ -14,7 +14,7 @@
 【投研预判断】
   需求足够明确，直接出方案。
   这是在验证 Snowflake 当季 consumption、后续增长和产品采用情况，适合用渠道/实施生态专家交叉验证。
-  判断依据：研究对象、问题、专家视角和最终专家目标都清楚；只需默认先做 10 profiles 校准。
+  判断依据：研究对象、问题、专家视角和最终专家目标都清楚；最终 3 位专家不是 3 个 Connect，默认先做 10 profiles 校准，确认方向后再扩到 80-100 个 Connect 量级。
 
 【课题与问题】
   Snowflake Q1/Q2 consumption and product adoption checks through sales/channel experts
@@ -30,7 +30,7 @@
   · 3 位专家可以分工覆盖问题，不要求每个人覆盖全部产品。
 
 【交付模式】
-  先做小样本校准：搜 100-200 人，给你 10 profiles 校准；本轮不发 Connect。
+  先做小样本校准：搜 100-200 人，给你 10 个高信号 profile 校准方向；本轮不发 Connect。
 
 【目标人群】
   我会依次找这几类专家：

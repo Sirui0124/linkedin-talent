@@ -126,7 +126,12 @@ function containsCompanyName(keyword, companyName) {
   const name = String(companyName || '').toLowerCase();
   if (!name) return false;
   if (kw.includes(name)) return true;
-  const stop = new Set(['digital', 'consulting', 'services', 'service', 'group', 'company', 'corporation', 'inc', 'llc']);
+  const stop = new Set([
+    'digital', 'consulting', 'services', 'service', 'group', 'company',
+    'corporation', 'inc', 'llc', 'systems', 'system', 'technology',
+    'technologies', 'semiconductor', 'semiconductors', 'power', 'module',
+    'modules', 'devices', 'device'
+  ]);
   const rawTokens = name
     .split(/[^a-z0-9]+/i)
     .map(t => t.trim())

@@ -40,7 +40,11 @@ node scripts/phase2-search-recall.mjs --batch-id <id> --dry-run
 
 搜索词应尽量长得像 `company + role + ecosystem position (+ topic)`，而不是 `company + generic product`。如果 primary 已经退化成单纯锚点公司名、泛行业词或泛产品大类，说明策略校对还不够收敛。
 
-公司 ID 能从 `lib/config.js` 找到时使用 LinkedIn `currentCompany` / `pastCompany` filter；找不到时退化为 `company name + keyword` 纯关键词搜索，并在 dry-run 里标记 `company_id_missing_keyword_fallback`。
+公开预研 query 不应直接进入本阶段。网页预研可以用长 query 查新闻、项目名、地名、审批和合作方；LinkedIn 召回要改写成候选人资料里可能出现的短词，优先是公司/机构名加职能、岗位、设施类型或生态位置。看到 `construction progress in ...`、`former plant redevelopment`、`approval timeline` 这类网页式 query 时，应回到 Phase 1 重写。
+
+公司 ID 能从 `lib/config.js` 找到时使用 LinkedIn `currentCompany` / `pastCompany` filter；dry-run 显示为 `keyword · currentCompany/pastCompany · company`，这等价于 `keyword + company filter`，不需要把公司名重复拼进 keyword。找不到 company ID 时才退化为完整 `company name + keyword` 纯关键词搜索，并在 dry-run 里标记 `company_id_missing_keyword_fallback`。
+
+fallback 拼接必须保守：只有 keyword 已包含完整公司名、明确公司名 token，或明确 acronym 时才认为"已带公司"。公司名里的行业/实体泛词不能算命中，例如 `Power`、`Systems`、`Modules`、`Semiconductor`、`Devices`、`Technologies`。否则 `Monolithic Power Systems + AI accelerator power` 会被错误缩成裸 `AI accelerator power`，导致搜索过宽。
 
 ## 输出
 
