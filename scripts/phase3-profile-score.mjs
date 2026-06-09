@@ -34,6 +34,7 @@ function parseArgs() {
     useLlm: process.env.LINKEDIN_TALENT_LLM !== '0',
     llmOnly: false,
     rescoreOnly: false,
+    selfTest: false,
     scores: null,
     forceSubagent: false,
     subagentThreshold: Number(process.env.LINKEDIN_TALENT_SUBAGENT_THRESHOLD || 50),
@@ -47,9 +48,11 @@ function parseArgs() {
     if (args[i] === '--no-llm')   opts.useLlm = false;
     if (args[i] === '--llm-only') opts.llmOnly = true;
     if (args[i] === '--rescore-only') opts.rescoreOnly = true;
+    if (args[i] === '--self-test') opts.selfTest = true;
     if (args[i] === '--scores')   opts.scores   = resolve(args[++i]);
     if (args[i] === '--force-subagent') opts.forceSubagent = true;
   }
+  if (opts.selfTest) return opts;
   // 通过 batch-id 自动展开
   if (opts.batchId) {
     if (!isValidBatchId(opts.batchId)) {
@@ -194,13 +197,25 @@ function matchesAnyCompany(company, targetCos) {
   });
 }
 
-function findTargetPosition(profile, criteria) {
+function targetCompaniesForScoring(criteria) {
+  return uniqueStrings([
+    ...asArray(criteria.hard_filters?.any_of_companies).map(c => typeof c === 'string' ? c : c?.name),
+    ...asArray(criteria.target_companies).map(c => typeof c === 'string' ? c : c?.name),
+  ]);
+}
+
+function targetCompanyPositions(profile, criteria) {
   const positions = profile.positions || [];
-  const targetCos = criteria.hard_filters?.any_of_companies || [];
+  const targetCos = targetCompaniesForScoring(criteria);
+  if (!targetCos.length) return [];
+  return positions.filter(p => matchesAnyCompany(p.company, targetCos));
+}
+
+function findTargetPosition(profile, criteria) {
   const titleKws = criteria.hard_filters?.title_must_match_any || [];
   const currentYear = new Date().getFullYear();
 
-  const targetPositions = positions.filter(p => matchesAnyCompany(p.company, targetCos));
+  const targetPositions = targetCompanyPositions(profile, criteria);
   const roleMatches = targetPositions.filter(p =>
     !titleKws.length || titleKws.some(kw => fuzzyMatch(kw, p.title || ''))
   );
@@ -218,32 +233,60 @@ function findTargetPosition(profile, criteria) {
 }
 
 function findTargetRolePositions(profile, criteria) {
-  const positions = profile.positions || [];
-  const targetCos = criteria.hard_filters?.any_of_companies || [];
   const titleKws = criteria.hard_filters?.title_must_match_any || [];
 
-  const targetPositions = positions.filter(p => matchesAnyCompany(p.company, targetCos));
+  const targetPositions = targetCompanyPositions(profile, criteria);
   const roleMatches = targetPositions.filter(p =>
     !titleKws.length || titleKws.some(kw => fuzzyMatch(kw, p.title || ''))
   );
   return roleMatches.length ? roleMatches : targetPositions;
 }
 
-function targetRoleDuration(profile, criteria) {
+function targetCompanyEmploymentWindow(profile, criteria) {
   const currentYear = new Date().getFullYear();
-  const positions = findTargetRolePositions(profile, criteria);
-  let years = 0;
-  let hasUnknownStart = false;
+  const positions = targetCompanyPositions(profile, criteria);
+  if (!positions.length) {
+    return { positions: [], years: 0, current: false, startYear: null, endYear: null, hasUnknownStart: false };
+  }
 
+  let hasUnknownStart = false;
+  const intervals = [];
   for (const p of positions) {
     if (!p.startYear) {
       hasUnknownStart = true;
       continue;
     }
-    years += Math.max(0, (p.endYear || currentYear) - p.startYear);
+    intervals.push({
+      start: Number(p.startYear),
+      end: Number(p.endYear || currentYear),
+      current: !p.endYear || Number(p.endYear) >= currentYear,
+    });
   }
 
-  return { years, hasUnknownStart };
+  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [];
+  for (const interval of intervals) {
+    const last = merged.at(-1);
+    if (!last || interval.start > last.end) {
+      merged.push({ ...interval });
+      continue;
+    }
+    last.end = Math.max(last.end, interval.end);
+    last.current = last.current || interval.current;
+  }
+
+  return {
+    positions,
+    years: merged.reduce((sum, i) => sum + Math.max(0, i.end - i.start), 0),
+    current: intervals.some(i => i.current) || (hasUnknownStart && positions.some(p => !p.endYear)),
+    startYear: intervals.length ? Math.min(...intervals.map(i => i.start)) : null,
+    endYear: intervals.some(i => i.current) ? null : Math.max(...intervals.map(i => i.end)),
+    hasUnknownStart,
+  };
+}
+
+function targetRoleDuration(profile, criteria) {
+  return targetCompanyEmploymentWindow(profile, criteria);
 }
 
 function targetRoleDurationScore(profile, criteria) {
@@ -254,6 +297,118 @@ function targetRoleDurationScore(profile, criteria) {
   if (years >= 1) return 45;
   if (years > 0) return 25;
   return hasUnknownStart ? 40 : 0;
+}
+
+function getTargetEmploymentPolicy(filtersOrCriteria) {
+  const filters = filtersOrCriteria?.hard_filters || filtersOrCriteria || {};
+  return filters.target_employment || filters.employment_recency || filtersOrCriteria?.target_employment || {};
+}
+
+function targetEmploymentStatus(profile, criteria) {
+  const currentYear = new Date().getFullYear();
+  const employmentWindow = targetCompanyEmploymentWindow(profile, criteria);
+  if (!employmentWindow.positions.length) {
+    return { status: 'unknown', label: '目标公司在职状态未知', yearsSinceLeft: null, position: null };
+  }
+  const targetPosition = findTargetPosition(profile, criteria) || employmentWindow.positions[0];
+
+  if (employmentWindow.current) {
+    return { status: 'current', label: '目标公司现任/在职', yearsSinceLeft: 0, position: targetPosition };
+  }
+
+  const yearsSinceLeft = Math.max(0, currentYear - Number(employmentWindow.endYear || currentYear));
+  return {
+    status: yearsSinceLeft <= 1 ? 'departed_recent' : 'departed_past',
+    label: yearsSinceLeft <= 1 ? '目标公司近期离职' : `目标公司离职约 ${yearsSinceLeft} 年`,
+    yearsSinceLeft,
+    position: targetPosition,
+  };
+}
+
+function normalizedEmploymentAccepted(policy) {
+  return asArray(policy.accepted_statuses || policy.accepted || policy.statuses)
+    .map(s => String(s).toLowerCase());
+}
+
+function employmentStatusAccepted(employment, policy) {
+  const accepted = normalizedEmploymentAccepted(policy);
+  const mode = String(policy.mode || policy.requirement || '').toLowerCase();
+  const maxYears = Number(policy.max_years_since_left ?? policy.maxYearsSinceLeft);
+  const minYears = Number(policy.min_years_since_left ?? policy.minYearsSinceLeft);
+
+  if (!policy || (!accepted.length && !mode && !policy.require_current && !policy.require_departed && !Number.isFinite(maxYears) && !Number.isFinite(minYears))) {
+    return { pass: true, reason: '' };
+  }
+  if (employment.status === 'unknown') {
+    return { pass: false, reason: '目标公司在职/离职状态未知' };
+  }
+
+  const isCurrent = employment.status === 'current';
+  const isDeparted = employment.status === 'departed_recent' || employment.status === 'departed_past';
+
+  if (policy.require_current || mode === 'current_only' || mode === 'current') {
+    return isCurrent ? { pass: true, reason: '' } : { pass: false, reason: '不符合目标公司在职要求' };
+  }
+  if (policy.require_departed || mode === 'departed_only' || mode === 'former_only' || mode === 'past_only') {
+    if (!isDeparted) return { pass: false, reason: '不符合目标公司离职/前任要求' };
+  }
+
+  if (accepted.length) {
+    const wantsCurrent = accepted.some(s => /current|active|incumbent|现任|在职/.test(s));
+    const wantsDeparted = accepted.some(s => /departed|former|past|left|alumni|离职|前任/.test(s));
+    const acceptedByStatus =
+      (isCurrent && wantsCurrent) ||
+      (isDeparted && wantsDeparted) ||
+      (employment.status === 'departed_recent' && accepted.some(s => /recent|within|近期|一年|1y|12/.test(s)));
+    if (!acceptedByStatus) return { pass: false, reason: `不符合目标公司在职状态要求: ${employment.label}` };
+  }
+
+  if (isDeparted && Number.isFinite(maxYears) && employment.yearsSinceLeft > maxYears) {
+    return { pass: false, reason: `目标公司离职超过 ${maxYears} 年` };
+  }
+  if (isDeparted && Number.isFinite(minYears) && employment.yearsSinceLeft < minYears) {
+    return { pass: false, reason: `目标公司离职不足 ${minYears} 年` };
+  }
+
+  return { pass: true, reason: '' };
+}
+
+function employmentPolicyIsStrict(policy) {
+  return policy.hard_filter === true ||
+    policy.required === true ||
+    policy.strict === true ||
+    policy.source === 'user_explicit';
+}
+
+function employmentRecencyScore(profile, criteria) {
+  const policy = getTargetEmploymentPolicy(criteria);
+  const employment = targetEmploymentStatus(profile, criteria);
+  const accepted = employmentStatusAccepted(employment, policy);
+  const maxYears = Number(policy.max_years_since_left ?? policy.maxYearsSinceLeft);
+  const minYears = Number(policy.min_years_since_left ?? policy.minYearsSinceLeft);
+  const duration = targetRoleDuration(profile, criteria);
+
+  if (employment.status === 'unknown') return 35;
+  if (!accepted.pass) return 15;
+  if (employment.status === 'current') {
+    if (policy.require_departed || String(policy.mode || '').toLowerCase().includes('departed')) return 45;
+    if (duration.years >= 3) return 100;
+    if (duration.years >= 1) return 90;
+    return duration.hasUnknownStart ? 80 : 75;
+  }
+
+  const years = employment.yearsSinceLeft ?? 99;
+  if (Number.isFinite(maxYears) && years <= maxYears) return 95;
+  if (Number.isFinite(minYears) && years >= minYears) return 90;
+  if (years <= 1) return 85;
+  if (years <= 2) return 60;
+  if (years <= 3) return 40;
+  return 20;
+}
+
+function employmentNote(profile, criteria) {
+  const employment = targetEmploymentStatus(profile, criteria);
+  return employment.label ? `；${employment.label}` : '';
 }
 
 function countHits(text, kws) {
@@ -279,9 +434,7 @@ function currentPosition(profile) {
 }
 
 function isCurrentTargetPosition(profile, criteria) {
-  const p = currentPosition(profile);
-  if (!p.company) return false;
-  return matchesAnyCompany(p.company, criteria.hard_filters?.any_of_companies || []);
+  return targetCompanyEmploymentWindow(profile, criteria).current;
 }
 
 function dimSemanticText(d) {
@@ -380,7 +533,11 @@ function semanticDimensionScore(d, profile, criteria) {
     return scoreFromHits(explicitHits + titleHits, 5, 20, 14);
   }
 
-  if (/fresh|seniority|senior|current|recent|资历|当前/.test(semantic)) {
+  if (/employment|recency|fresh|current|recent|depart|former|离职|在职|现任|当前性|新鲜/.test(semantic)) {
+    return employmentRecencyScore(profile, criteria);
+  }
+
+  if (/seniority|senior|资历/.test(semantic)) {
     const seniorityHits = countHits(titles, seniorityKeywords());
     const duration = targetRoleDurationScore(profile, criteria);
     return clampScore(Math.max(duration, 25) + Math.min(seniorityHits, 4) * 10 + (currentTarget || !targetPosition?.endYear ? 10 : 0));
@@ -390,7 +547,9 @@ function semanticDimensionScore(d, profile, criteria) {
   return scoreFromHits(genericHits, 4, 30, 12);
 }
 
-function hardFilter(profile, filters) {
+function hardFilter(profile, criteriaOrFilters) {
+  const criteria = criteriaOrFilters?.hard_filters ? criteriaOrFilters : { hard_filters: criteriaOrFilters || {} };
+  const filters = criteria.hard_filters || {};
   // 公司匹配（宽松：只要任一职位含目标公司即通过）
   if (filters.any_of_companies?.length) {
     const allCos = (profile.positions || []).map(p => p.company || '');
@@ -415,6 +574,12 @@ function hardFilter(profile, filters) {
     const allTitles = (profile.positions || []).map(p => p.title || '').join(' ').toLowerCase();
     const hit = filters.title_must_match_any.some(kw => allTitles.includes(kw.toLowerCase()));
     if (!hit) return { pass: false, reason: 'Title 无相关关键词' };
+  }
+  const employmentPolicy = getTargetEmploymentPolicy(filters);
+  if (employmentPolicyIsStrict(employmentPolicy)) {
+    const employment = targetEmploymentStatus(profile, criteria);
+    const accepted = employmentStatusAccepted(employment, employmentPolicy);
+    if (!accepted.pass) return { pass: false, reason: accepted.reason };
   }
   return { pass: true, reason: '通过宽松硬筛' };
 }
@@ -447,6 +612,11 @@ function ruleScore(profile, criteria) {
       case 'target_company_role_duration': {
         return targetRoleDurationScore(profile, criteria);
       }
+      case 'employment_recency':
+      case 'target_employment_recency':
+      case 'current_or_recent_departure': {
+        return employmentRecencyScore(profile, criteria);
+      }
       case 'bonus': {
         const bonusKws = d.bonus_keywords || [];
         return bonusKws.some(kw => text.includes(kw.toLowerCase())) ? 60 : 20;
@@ -472,11 +642,12 @@ function ruleReasoning(profile, dimScores, dims, criteria) {
   const currentNote = targetPosition && (targetPosition.company !== currentCo || targetPosition.title !== currentTitle)
     ? `；当前展示为 ${currentCo} ${currentTitle}`
     : '';
+  const recencyNote = employmentNote(profile, criteria);
   const highlightTitle = /partner|alliance|gtm|go-to-market|marketplace|sales|solution|architect|business development|customer|product|technical|ai/i.test(reasonTitle)
     ? reasonTitle
     : 'relevant ecosystem work';
   return {
-    reasoning: `${reasonCo} ${reasonTitle}，${topDim?.label || ''}高匹配${currentNote}`,
+    reasoning: `${reasonCo} ${reasonTitle}，${topDim?.label || ''}高匹配${currentNote}${recencyNote}`,
     highlight_for_outreach: `Your ${highlightTitle} experience at ${reasonCo} is highly relevant —`,
     matched_signals: dims.filter((_, i) => dimScores[i] >= 70).map(d => d.label),
     missed_signals: dims.filter((_, i) => dimScores[i] < 50).map(d => d.label),
@@ -728,9 +899,94 @@ function getProfileScript(vanity) {
 })()`;
 }
 
+function assertSelfTest(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function runSelfTest() {
+  const baseCriteria = {
+    target_companies: [{ name: 'Google', priority: 1 }],
+    hard_filters: {
+      any_of_companies: ['Google'],
+      title_must_match_any: ['Sales', 'GTM'],
+      target_employment: {
+        mode: 'current_or_recent_departure',
+        accepted_statuses: ['current', 'departed_recent'],
+        max_years_since_left: 1,
+        hard_filter: false,
+        source: 'default_assumption',
+      },
+    },
+    scoring_dimensions: [
+      { key: 'company_match', label: '公司匹配', weight: 0.25, description: '目标公司经历' },
+      { key: 'topic_depth', label: '岗位匹配', weight: 0.25, description: 'AI sales / GTM' },
+      { key: 'target_role_duration', label: '目标岗时长', weight: 0.25, description: '目标岗位累计时长' },
+      { key: 'employment_recency', label: '在职/离职窗口', weight: 0.25, description: '现任或 1 年内离职优先' },
+    ],
+  };
+  const currentLong = {
+    headline: 'AI Sales Lead at Google',
+    positions: [{ company: 'Google', title: 'AI Sales Lead', startYear: 2021, desc: 'AI GTM and enterprise sales' }],
+    skills: ['AI', 'Sales', 'GTM'],
+  };
+  const currentShort = {
+    headline: 'GTM at Google',
+    positions: [{ company: 'Google', title: 'GTM', startYear: new Date().getFullYear(), desc: 'AI GTM' }],
+    skills: ['AI', 'GTM'],
+  };
+  const departedRecent = {
+    headline: 'Former GTM Lead at Google',
+    positions: [
+      { company: 'Startup', title: 'Advisor', startYear: new Date().getFullYear(), desc: 'Advisory' },
+      { company: 'Google', title: 'GTM Lead', startYear: 2022, endYear: new Date().getFullYear(), desc: 'AI GTM and customer adoption' },
+    ],
+    skills: ['AI', 'GTM'],
+  };
+  const departedOld = {
+    headline: 'Former Sales Lead at Google',
+    positions: [
+      { company: 'OtherCo', title: 'Advisor', startYear: 2025, desc: 'Advisory' },
+      { company: 'Google', title: 'Sales Lead', startYear: 2018, endYear: 2022, desc: 'AI sales' },
+    ],
+    skills: ['AI', 'Sales'],
+  };
+
+  const longEmploymentScore = employmentRecencyScore(currentLong, baseCriteria);
+  const shortEmploymentScore = employmentRecencyScore(currentShort, baseCriteria);
+  const oldEmploymentScore = employmentRecencyScore(departedOld, baseCriteria);
+  assertSelfTest(longEmploymentScore > shortEmploymentScore, `expected long current > short current, got ${longEmploymentScore} <= ${shortEmploymentScore}`);
+  assertSelfTest(shortEmploymentScore > oldEmploymentScore, `expected short current > old departed, got ${shortEmploymentScore} <= ${oldEmploymentScore}`);
+  assertSelfTest(hardFilter(departedOld, baseCriteria.hard_filters).pass, 'default assumption should not hard-filter old departed candidates');
+
+  const strictCriteria = JSON.parse(JSON.stringify(baseCriteria));
+  strictCriteria.hard_filters.target_employment.hard_filter = true;
+  strictCriteria.hard_filters.target_employment.source = 'user_explicit';
+  assertSelfTest(hardFilter(currentLong, strictCriteria.hard_filters).pass, 'strict explicit policy should allow current candidates');
+  assertSelfTest(hardFilter(departedRecent, strictCriteria.hard_filters).pass, 'strict explicit policy should allow recent departed candidates');
+  const strictOld = hardFilter(departedOld, strictCriteria.hard_filters);
+  assertSelfTest(!strictOld.pass && /离职超过 1 年/.test(strictOld.reason), `strict explicit policy should reject old departed candidates, got: ${strictOld.reason}`);
+
+  const { dimScores } = ruleScore(currentLong, baseCriteria);
+  assertSelfTest(baseCriteria.scoring_dimensions.some((d, i) => d.key === 'employment_recency' && dimScores[i] === longEmploymentScore), 'employment_recency dimension was not scored');
+  console.log(JSON.stringify({
+    ok: true,
+    employment_recency_scores: {
+      current_long: longEmploymentScore,
+      current_short: shortEmploymentScore,
+      departed_old_default: oldEmploymentScore,
+    },
+    strict_old_reject_reason: strictOld.reason,
+  }, null, 2));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const opts = parseArgs();
+
+  if (opts.selfTest) {
+    runSelfTest();
+    return;
+  }
 
   const rawData = JSON.parse(readFileSync(opts.input, 'utf8'));
   const candidates = rawData.candidates || rawData; // 支持数组或 {candidates:[...]}
@@ -837,7 +1093,7 @@ async function main() {
     profile.search_card_headline = cand.headline || '';
 
     // L2 硬筛
-    const l2 = hardFilter(profile, criteria.hard_filters || {});
+    const l2 = hardFilter(profile, criteria);
     if (!l2.pass) {
       console.log(`L2 fail: ${l2.reason}`);
       results.failed.push({ name: cand.name, headline: cand.headline, vanity: cand.vanity, reason: l2.reason });

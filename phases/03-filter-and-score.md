@@ -5,12 +5,13 @@
 **实现入口**：
 - `node scripts/phase3-profile-score.mjs --batch-id <id>`：完成 Profile 拉取、L2/L2.5，并产出 `phase3_subagent_input_<id>.json`
 - `node scripts/phase3-apply-subagent-scores.mjs --batch-id <id> --scores <scores.json>`：把 Codex subagent 的 L3 结果合并回 phase3 输出
+- `node scripts/phase3-profile-score.mjs --self-test`：本地离线验证在职/离职默认假设、显式严格硬筛、`employment_recency` 规则评分，不调用 LinkedIn API
 
 mjs 已实现：
 - **3.0 预筛**（无 API，基于搜索卡片 `headline/location` + `hits`，由当批 criteria 驱动）—— `preFilter()`
 - **3.0b Profile 拉取**（间隔由 `humanDelay()` 控制，模拟人类停顿）—— `getProfileScript()`
-- **3.1 L2 硬筛**（公司 / 必含词 / 排除词 / title 模糊匹配，全部 AND，宽松策略）—— `hardFilter()`
-- **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `target_role_duration`/`seniority_focus` / `bonus`）—— `ruleScore()`
+- **3.1 L2 硬筛**（公司 / 必含词 / 排除词 / title 模糊匹配，全部 AND；显式 `target_employment.hard_filter=true` 时加入在职/离职窗口）—— `hardFilter()`
+- **3.1b L2.5 规则评分**（按 `scoring_dimensions.key` 路由：`company_match` / `topic_depth` / `target_role_duration` / `employment_recency` / `seniority_focus` / `bonus`）—— `ruleScore()`
 - **3.2 Subagent 输入包导出**—— `phase3_subagent_input_<id>.json`
 - **断点续跑** `--resume <partial.json>`、定期写中间结果（每 10 人）
 - **错误码**：401/403/429 → 整批立即停止；其他非 200 仅丢弃单人
@@ -52,6 +53,7 @@ mjs 已实现：
 【核心排序原则】
 - 硬筛命中不等于高分。L2 已确认"有目标公司/岗位信号"后，L3 必须继续判断命中质量。
 - 岗位寻访默认必须评估目标公司 + 目标岗位累计时长（`target_role_duration` 或语义等价物）。
+- 用户提出在职/离职要求时，必须评估目标公司经历的当前性（`employment_recency` 或语义等价物）：现任、近期离职、离职 1 年内、只看前员工等都要体现在打分和 missed_signals 里。
 - 目标岗时长短、刚入职、仅实习、起止年缺失，应降权；不能因为 company_match 和 topic_depth 都命中就直接给高总分。
 - production shortlist 可以包含 backup：Tier 1 要能直接回答核心问题；Tier 2 可以是方向正确但证据不完整的补充验证人选；Tier 3 是弱相关备选。必须把缺失证据写进 missed_signals。
 - reasoning / highlight_for_outreach 优先引用最相关的目标公司目标岗位经历，不要默认取第一段当前经历。
@@ -104,6 +106,45 @@ mjs 已实现：
 40 : 命中目标公司/目标岗但缺少 startYear，保守中低分并待人工复核
 0  : 无可计算目标岗时长，或只显示未来/当年刚开始
 ```
+
+## 在职/离职窗口评分口径
+
+用于用户提出"希望现任"、"近期离职"、"离职 1 年内"、"只看前员工"等要求时。Phase 1 应写入：
+
+```json
+{
+  "hard_filters": {
+    "target_employment": {
+      "mode": "current_or_recent_departure",
+      "accepted_statuses": ["current", "departed_recent"],
+      "max_years_since_left": 1,
+      "hard_filter": false,
+      "source": "default_assumption",
+      "notes": "月份级窗口只做人工复核"
+    }
+  },
+  "scoring_dimensions": [
+    {"key": "employment_recency", "label": "在职/离职窗口", "weight": 0.20, "description": "是否符合目标公司的在职状态或离职时长要求"}
+  ]
+}
+```
+
+脚本判断基于 Profile 结构化经历的 `endYear`：
+
+```text
+current                  : 目标公司/目标岗位无 endYear，或 endYear >= 当前年
+departed_recent          : 目标公司/目标岗位 endYear 距当前年 <= 1
+departed_past            : 离职超过 1 年
+unknown                  : 没有可匹配目标公司/岗位经历
+```
+
+目标公司边界取自 `target_companies` + `hard_filters.any_of_companies`。如果候选人在同一目标公司有多段职位，freshness 和在职/离职状态必须先合并该目标公司的完整任职窗口，再判断 current / departed；不能用搜索命中的那条职位、命中的关键词、或第一段当前展示职位作为边界。
+
+默认规则：如果用户没有说明在职/离职窗口，Phase 1 仍应写入 `source=default_assumption`、`hard_filter=false`。评分时现任优先，且目标公司/目标岗在职年限越久得分越高；1 年内离职次之；离职超过 1 年明显降权但不自动淘汰。
+
+严格规则：如果用户明确给出"离职 N 年/月内"、"必须在职"或"只看前员工"，Phase 1 应写入 `source=user_explicit` 和 `hard_filter=true`。脚本会在 L2 硬筛直接淘汰不符合窗口的人。
+
+LinkedIn 通常不给稳定的离职月份；"3-6 个月内/超过 3 个月"这类要求不能做成精确自动判断，只能用 `notes` 保留并在 Review Dashboard 人工核验。
 
 ## Subagent 模式（≥50 人触发）
 
