@@ -26,8 +26,18 @@
   "default_dimensions_for_role_search": [
     {"key": "company_match", "label": "公司匹配", "description": "是否有目标公司经历；现任或近期相关经历优先，历史短暂经历次之", "weight": 0.25},
     {"key": "topic_depth", "label": "岗位匹配", "description": "title、经历描述、技能是否明确对应目标岗位/目标职能", "weight": 0.30},
-    {"key": "target_role_duration", "label": "目标岗时长", "description": "在目标公司 + 目标岗位/相关职能上的累计时长；短期、刚入职、实习、起止年缺失要降权", "weight": 0.45}
+    {"key": "target_role_duration", "label": "目标岗时长", "description": "在目标公司 + 目标岗位/相关职能上的累计时长；短期、刚入职、实习、起止年缺失要降权", "weight": 0.25},
+    {"key": "employment_recency", "label": "在职/离职窗口", "description": "是否符合用户对目标公司在职状态或离职时长的要求；未明确要求时默认现任或 1 年内离职优先，现任年限久/近期离职加分更多", "weight": 0.20}
   ],
+  "target_employment_schema": {
+    "mode": "current_only | departed_only | current_or_recent_departure",
+    "accepted_statuses": ["current", "departed_recent"],
+    "max_years_since_left": "number; 离职 N 年内，例如 1",
+    "min_years_since_left": "number; 仅用于希望不要刚离职的前员工场景，月份级窗口需人工复核",
+    "hard_filter": "boolean; 用户明确给离职期限/必须在职/只看前员工时 true；默认假设时 false",
+    "source": "default_assumption | user_explicit; user_explicit 会按严格规则执行",
+    "notes": "string; 写明 3-6 个月等 LinkedIn 无法稳定结构化判断的窗口"
+  },
   "target_role_duration_scoring": {
     "100": "累计 >=5 年",
     "85": "累计 >=3 年且 <5 年",

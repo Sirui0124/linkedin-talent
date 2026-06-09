@@ -15,6 +15,7 @@
     "doctor:fix": "bash scripts/doctor.sh --fix",
     "update:skill": "bash scripts/update-skill.sh",
     "phase2:search": "node scripts/phase2-search-recall.mjs",
+    "phase3:self-test": "node scripts/phase3-profile-score.mjs --self-test",
     "phase7:sync": "node scripts/phase7-sync-dashboard.mjs",
     "schema:check": "node scripts/schema-check.mjs"
   }

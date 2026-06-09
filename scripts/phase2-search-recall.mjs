@@ -145,12 +145,41 @@ function buildFallbackCompanyKeyword(keyword, companyName) {
   return containsCompanyName(keyword, companyName) ? keyword : `${companyName} ${keyword}`.trim();
 }
 
+function getTargetEmploymentPolicy(criteria) {
+  const filters = criteria.hard_filters || {};
+  return filters.target_employment || filters.employment_recency || criteria.target_employment || {};
+}
+
+function getEmploymentSearchStrategies(criteria) {
+  const policy = getTargetEmploymentPolicy(criteria);
+  const accepted = asArray(policy.accepted_statuses || policy.accepted || policy.statuses)
+    .map(s => String(s).toLowerCase());
+  const mode = String(policy.mode || policy.requirement || '').toLowerCase();
+
+  if (policy.require_current || mode === 'current_only' || mode === 'current') {
+    return [SEARCH_STRATEGIES.CURRENT_COMPANY];
+  }
+  if (policy.require_departed || mode === 'departed_only' || mode === 'former_only' || mode === 'past_only') {
+    return [SEARCH_STRATEGIES.PAST_COMPANY];
+  }
+
+  if (accepted.length) {
+    const wantsCurrent = accepted.some(s => /current|active|incumbent|现任|在职/.test(s));
+    const wantsDeparted = accepted.some(s => /departed|former|past|left|alumni|离职|前任/.test(s));
+    if (wantsCurrent && !wantsDeparted) return [SEARCH_STRATEGIES.CURRENT_COMPANY];
+    if (wantsDeparted && !wantsCurrent) return [SEARCH_STRATEGIES.PAST_COMPANY];
+  }
+
+  return [SEARCH_STRATEGIES.CURRENT_COMPANY, SEARCH_STRATEGIES.PAST_COMPANY];
+}
+
 function buildSearchPlan(criteria) {
   const stages = getKeywordStages(criteria);
   const companies = getTargetCompanies(criteria);
   const matrix = asArray(criteria.search_keywords?.company_topic_matrix);
   const { targetPerSearch } = getRecallTargets(criteria);
   const pages = Math.max(1, Math.ceil(targetPerSearch / DEFAULT_SEARCH_CONFIG.pageSize));
+  const companyStrategies = getEmploymentSearchStrategies(criteria);
   const plan = [];
 
   if (matrix.length) {
@@ -159,7 +188,7 @@ function buildSearchPlan(criteria) {
       const companyId = getCompanyId(companyName);
       for (const keyword of uniq(asArray(row.queries))) {
         if (companyId) {
-          for (const strategy of [SEARCH_STRATEGIES.CURRENT_COMPANY, SEARCH_STRATEGIES.PAST_COMPANY]) {
+          for (const strategy of companyStrategies) {
             plan.push({ stage: 'primary', keyword, strategy, companyName, companyId, pages });
           }
         } else {
@@ -180,7 +209,7 @@ function buildSearchPlan(criteria) {
       for (const company of companies) {
         const companyId = getCompanyId(company.name);
         if (companyId) {
-          for (const strategy of [SEARCH_STRATEGIES.CURRENT_COMPANY, SEARCH_STRATEGIES.PAST_COMPANY]) {
+          for (const strategy of companyStrategies) {
             plan.push({ stage: 'primary', keyword, strategy, companyName: company.name, companyId, pages });
           }
         } else {

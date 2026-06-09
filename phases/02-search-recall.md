@@ -31,12 +31,19 @@ node scripts/phase2-search-recall.mjs --batch-id <id> --dry-run
 - `search_keywords.primary` / `secondary` / `fallback`
 - `search_keywords.company_topic_matrix`
 - `target_companies`
+- `hard_filters.target_employment` / `hard_filters.employment_recency`
 
 优先级：
 
 1. 有 `company_topic_matrix` 时，按每个公司自己的 queries 搜。
 2. 没有 matrix 但有 `target_companies` 时，按 `primary keyword × target_companies × current/past company` 搜。
 3. 没有公司池时，按纯关键词搜。
+
+若 criteria 明确写了 `target_employment`，公司过滤策略随之收窄：
+
+- `mode=current_only` / `require_current=true` / 只接受 `current` → 只跑 `currentCompany`。
+- `mode=departed_only` / `require_departed=true` / 只接受前任或离职 → 只跑 `pastCompany`。
+- `mode=current_or_recent_departure` 或未声明 → 同时跑 `currentCompany` 和 `pastCompany`，再交给 Phase 3 判断离职年份。
 
 搜索词应尽量长得像 `company + role + ecosystem position (+ topic)`，而不是 `company + generic product`。如果 primary 已经退化成单纯锚点公司名、泛行业词或泛产品大类，说明策略校对还不够收敛。
 

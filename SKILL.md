@@ -127,8 +127,8 @@ Phase 7 · Dashboard 同步    → bash: node scripts/phase7-sync-dashboard.mjs 
    | 层 | Phase | 输入 | 输出 | 做什么 | 不做什么 |
    |---|---|---|---|---|---|
    | **L1 搜索** | 2 | `search_keywords`（2-4 个最强信号词）+ `target_companies` | 按 `delivery_mode` 召回：校准 100-200；一步到位 300-500+ | 用 LinkedIn API **少而精地召回**；primary/secondary/fallback 按优先级分层扩池，达标即停 | 不做淘汰（不过滤 marketing/HR）；不做排序打分；**泛词不进搜索**（如 "semiconductor"、"2nm"） |
-   | **L2 硬筛** | 3 | 完整 Profile + `hard_filters` | 通过 / 未通过 + 原因 | **确定性 yes/no**：公司、必含/排除关键词、title 模糊匹配，全部 AND | 不做强弱比较（"TSMC 现任 vs 其他公司" 留给 L3）；不做 0-100 打分 |
-   | **L3 LLM 评分** | 3 | 通过硬筛者 + `scoring_dimensions` | 各维度 0-100 → 加权总分 → Tier 1/2/3 | **多维度排序**：公司匹配、课题深度、资历聚焦等，按权重加权 | 不淘汰明显无关者（那是 L2）；不在搜索阶段用宽词"赌命中率" |
+   | **L2 硬筛** | 3 | 完整 Profile + `hard_filters` | 通过 / 未通过 + 原因 | **确定性 yes/no**：公司、必含/排除关键词、title 模糊匹配；用户明确"必须在职/必须离职/离职 1 年内"时也可硬筛 | 不做强弱比较（"TSMC 现任 vs 其他公司" 留给 L3）；不做 0-100 打分 |
+   | **L3 LLM 评分** | 3 | 通过硬筛者 + `scoring_dimensions` | 各维度 0-100 → 加权总分 → Tier 1/2/3 | **多维度排序**：公司匹配、课题深度、目标岗时长、在职/离职窗口、资历聚焦等，按权重加权 | 不淘汰明显无关者（那是 L2）；不在搜索阶段用宽词"赌命中率" |
 
    **关键词分流规则**（Phase 1 解析时执行）：
    - 先用"投资研究调研"视角做需求完整度预判断：明确研究对象、研究问题、时间范围/市场范围、专家视角和交付目标时，直接出 Phase 1 方案；若缺失项会改变调研口径、目标专家类型、地域/市场范围、公司池或交付规模，先问 1-3 个短问题
@@ -139,6 +139,7 @@ Phase 7 · Dashboard 同步    → bash: node scripts/phase7-sync-dashboard.mjs 
    - 开放型专家需求先拆 `personas`：先判断用户真正需要哪几类人，再为每类人设计搜索入口和筛选口径
    - "X 的销售渠道/channel/partner" 先判定 `intent.view`：到底要 X 原厂内部销售/渠道，还是 X 的外部渠道商/合作伙伴公司；不能因为出现 X 就只找 X 员工
    - partner/channel/supplier/customer/construction 类需求先做 `ecosystem_company_discovery`：这是 Phase 1 的背景调研，必须在用户确认前完成；先找出 top 生态/合作伙伴公司，再用公司名找人；泛关系词只做 fallback
+   - 若用户提到"在职/现任/近期离职/离职 1 年内/只看前员工"，必须把要求单独写入 `hard_filters.target_employment`，并在 `scoring_dimensions` 里加入 `employment_recency` 或语义等价维度；用户明确给了离职期限时直接 `source=user_explicit` + `hard_filter=true` 严格执行，不再追问。用户未说明时默认 `source=default_assumption`：现任或 1 年内离职优先，现任年限久/近期离职加分更多，但不硬淘汰。LinkedIn 结构化经历通常只有年份，月份级离职窗口只能作为 `notes` 和人工复核提示。
    - 面向用户只输出精简校对版：投研预判断、课题与问题、交付一句话、2-3 类目标人群、已发现的 partner 公司池、话术主旨和 1 个参考模板、本地策略文件路径。硬筛/权重/完整搜索矩阵写入 `data/criteria/<batchId>.json`，不默认展开。
    - 不要对用户说 "Phase 1.4" / "Phase 1.5" 这类内部编号；用户只需要看到"策略校对"、"搜索"、"名单确认"、"发送"这些自然步骤。
    - 话术确认并入 Phase 1：只确认 sender/rate/对外模糊话题/沟通主旨/一个参考模板。不要在搜索前要求用户二次确认多个话术版本。筛选完成后，Phase 4/5 必须生成逐人 Connect note 预览，用户确认人选和话术后 Phase 6 才能发送。
