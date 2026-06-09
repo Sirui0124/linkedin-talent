@@ -55,7 +55,7 @@
 【沟通话术】
   对外话题：enterprise data platform and AI product adoption
   主旨：邀请对方参加 60-min anonymous paid consultation，先索取 personal email 发送正式邀请和 honorarium details。
-  参考模板（筛选后会按每位候选人 Profile 个性化）：
+  参考模板（访谈邀约默认使用通用认可句；社交建联才按 Profile 个性化）：
     Hi Emma, I'm Zadie at Funda.ai (Singapore-based research + expert network). We're conducting a paid ($300-800/hr) research on enterprise data platform and AI product adoption. Your expertise is exactly what we're looking for — do you have a personal email where I can send the formal invitation and honorarium details?
   注意：这一步只确认话术方向；名单出来后我会生成逐人话术预览，你确认人选和话术后才会发 Connect。
 

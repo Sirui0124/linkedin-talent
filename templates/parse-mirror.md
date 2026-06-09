@@ -60,7 +60,7 @@
 【沟通话术】
   对外话题：{outreach_plan.topic_obfuscated}
   主旨：{outreach_plan.message_intent}
-  参考模板（筛选后会按每位候选人 Profile 个性化）：
+  参考模板（访谈邀约默认使用通用认可句；社交建联才按 Profile 个性化）：
     {outreach_plan.reference_connect_note}
   注意：这一步只确认话术方向；名单出来后我会生成逐人话术预览，你确认人选和话术后才会发 Connect。
 

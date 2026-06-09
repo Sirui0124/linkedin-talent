@@ -31,7 +31,8 @@
  *   - 长度：type1/type2 严格 ≤ 290 字符（LinkedIn 上限留 20 字符余量）；type3 无限制
  *   - 变量：{firstName}, {senderName}, {company}, {topic_obfuscated},
  *           {topic_label}, {rate_range}, {expertise}, {highlight}
- *   - {highlight} = phase3 输出的 highlight_for_outreach（不再让 LLM 重新生成）
+ *   - {highlight}: type1 社交建联使用 phase3 个性化 highlight；
+ *                  type2/type3 访谈邀约使用通用 "Your experience is highly relevant."
  *   - 候选人姓名/headline 含中文 → 走 connect-templates.json 的 language_rules.use_chinese_when
  *   - Profile 异常 (pending) → 用 headline 兜底，状态列标 "待人工核验"
  *
@@ -86,6 +87,7 @@ function loadConnectDefaults() {
     topic: tpl.project_config?.topic_obfuscated || tpl.project_config?.topic_specific || '',
     templateType: tpl.project_config?.template_type || 'type1_friendly',
     tplTemplates: tpl.templates || {},
+    senderProfiles: tpl.sender_profiles || {},
   };
 }
 
@@ -100,6 +102,7 @@ function parseArgs() {
     company: defaults.company, topic: defaults.topic,
     templateType: defaults.templateType,
     tplTemplates: defaults.tplTemplates,
+    senderProfiles: defaults.senderProfiles,
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--batch-id') opts.batchId  = args[++i];
@@ -151,13 +154,63 @@ function parseArgs() {
 }
 
 // ── Connect message ───────────────────────────────────────────────────────────
+function applyCriteriaOutreach(opts, criteria) {
+  const plan = criteria?.outreach_plan || {};
+  if (plan.sender_profile_key) {
+    opts.sender = opts.senderProfiles?.[plan.sender_profile_key]?.name || plan.sender_profile_key || opts.sender;
+  }
+  if (plan.rate_range) opts.rate = plan.rate_range;
+  if (plan.topic_obfuscated) opts.topic = plan.topic_obfuscated;
+  if (plan.template_type) opts.templateType = plan.template_type;
+  return opts;
+}
+
+function compactText(text, max) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.slice(0, Math.max(0, max - 1)).replace(/\s+\S*$/, '').trim();
+}
+
+function compactHighlight(text, max) {
+  let clean = String(text || 'Your relevant industry experience is highly valuable.')
+    .replace(/[—–-]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  clean = compactText(clean, max)
+    .replace(/[.!?。；;,:，、]+$/g, '')
+    .replace(/\b(is|highly|very|at|in|with|and|for)$/i, '')
+    .trim();
+  if (!/[.!?]$/.test(clean)) clean += '.';
+  return clean;
+}
+
+function compactPaidConnectMsg(firstName, hl, opts) {
+  const topic = compactText(opts.topic || 'industry trends and product adoption', 52);
+  const highlight = compactHighlight(hl, 72);
+  const variants = [
+    `Hi ${firstName}, I'm ${opts.sender} at Funda.ai. We're running a paid (${opts.rate}) research on ${topic}. ${highlight} May I send the formal invite and honorarium details to your personal email?`,
+    `Hi ${firstName}, I'm ${opts.sender} at Funda.ai. Paid ${opts.rate} expert call on ${topic}. ${highlight} Personal email for the formal invite and honorarium details?`,
+    `Hi ${firstName}, I'm ${opts.sender} at Funda.ai. Paid expert call on ${topic}. ${highlight} Personal email for details?`,
+  ];
+  return variants.find(v => v.length <= 290) || compactText(variants.at(-1), 289);
+}
+
+function isInterviewTemplate(tplType) {
+  return tplType === 'type2_direct' || tplType === 'type3_detailed_inmail';
+}
+
+function highlightForTemplate(c, tplType) {
+  if (isInterviewTemplate(tplType)) return 'Your experience is highly relevant.';
+  return compactHighlight(c.highlight_for_outreach || '', 72);
+}
+
 function buildConnectMsg(c, opts) {
   const firstName = c.first_name || c.name?.split(' ')[0] || c.name || 'there';
-  const hl = c.highlight_for_outreach || '';
   const tplType = opts.templateType || 'type1_friendly';
+  const hl = highlightForTemplate(c, tplType);
   const tpl = (opts.tplTemplates || {})[tplType];
   if (!tpl?.connect_message) {
-    return `Hi ${firstName},${hl ? ' ' + hl : ''} Would love to connect!`;
+    return compactPaidConnectMsg(firstName, hl, opts);
   }
   const msg = tpl.connect_message
     .replace(/{firstName}/g, firstName)
@@ -169,7 +222,7 @@ function buildConnectMsg(c, opts) {
     .replace(/  +/g, ' ')
     .trim();
   if (tplType !== 'type3_detailed_inmail' && msg.length > 290) {
-    return `Hi ${firstName},${hl ? ' ' + hl : ''} Would love to connect!`;
+    return compactPaidConnectMsg(firstName, hl, opts);
   }
   return msg;
 }
@@ -314,6 +367,7 @@ async function main() {
   const criteria = opts.criteria && existsSync(opts.criteria)
     ? JSON.parse(readFileSync(opts.criteria, 'utf8'))
     : {};
+  applyCriteriaOutreach(opts, criteria);
 
   console.log(`passed: ${passed.length}  failed: ${failed.length}`);
 
@@ -332,6 +386,7 @@ async function main() {
   const t1 = passed.filter(c => c.tier === 1).length;
   const t2 = passed.filter(c => c.tier === 2).length;
   const t3 = passed.filter(c => c.tier === 3).length;
+  const t0 = passed.filter(c => c.tier === 0).length;
   const statsRows = [
     ['指标', '数值'],
     ['总召回', summary.total || '—'],
@@ -342,6 +397,7 @@ async function main() {
     ['Tier 1 (⭐⭐⭐)', t1],
     ['Tier 2 (⭐⭐)', t2],
     ['Tier 3 (⭐)', t3],
+    ['Tier 0 / 排除', t0],
     ['生成时间', new Date().toLocaleString('zh-CN')],
   ];
   const ws3 = XLSX.utils.aoa_to_sheet(statsRows);
@@ -367,7 +423,7 @@ async function main() {
 
   console.log(`✓ Excel      : ${opts.output}`);
   console.log(`✓ Review URL : ${dashboardUrl}`);
-  console.log(`  候选人 ${passed.length} 行 (T1:${t1} T2:${t2} T3:${t3}) | 淘汰 ${failed.length} 行`);
+  console.log(`  候选人 ${passed.length} 行 (T1:${t1} T2:${t2} T3:${t3} T0:${t0}) | 淘汰 ${failed.length} 行`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

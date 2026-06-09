@@ -66,6 +66,15 @@ linkedin-talent/
 数据落盘到 `data/`（或 `LINKEDIN_TALENT_HOME` 指定目录，详见 `lib/paths.js`），并由 `.gitignore` 排除，不同步到 GitHub。
 `data/strategies/`、`data/criteria/`、`data/exports/`、`data/batches/`、`data/decisions/`、`data/dashboard.xlsx` 都是本地 user data。代码更新只能兼容读取、补建缺失目录、追加新批次；不能覆盖用户策略、历史 Excel、decisions、固定 dashboard 数据。
 
+## Codex memory 与运行边界
+
+Codex 可能会读取本机 `/Users/sirui/.codex/memories/` 下的 memory 作为历史上下文，但这些文件不是 skill 的运行时依赖，也不会被 Node 脚本自动读取。
+
+- 运行权威来源：`SKILL.md`、`phases/`、`templates/`、`lib/`、`scripts/` 和 `data/` / `LINKEDIN_TALENT_HOME`。
+- 如果 memory 与当前仓库文件不一致，以当前仓库文件和脚本实测为准；修改行为前先检查真实入口和脚本契约。
+- 稳定工作流规则必须沉淀进本 skill，而不是只留在 memory：投研预判断、persona-first、生态公司先行、精简策略校对、小样本校准/直接扩池规模、本地 user data 保护、Excel + review dashboard 路径，都应在本文件或对应 phase/script/template 中可见。
+- 若发现 memory 中有会影响搜索、筛选、导出、发送或更新安全的规则，先把它迁移到本 skill 的相应文件，再按新规则执行。
+
 ## 执行顺序与停顿点
 
 ⏸ 标志表示**必须等用户确认才继续**。

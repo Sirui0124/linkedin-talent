@@ -24,7 +24,7 @@
     },
     "type2_direct": {
       "label": "明确付费咨询",
-      "description": "Connect note 一步到位：模糊课题 + 付费区间 + 60-min 1-on-1 匿名通话 + 对专家的高度认同（通过 highlight）+ 索取个人邮箱。适合找专家。",
+      "description": "Connect note 一步到位：模糊课题 + 付费区间 + 60-min 1-on-1 匿名通话 + 通用认可句 + 索取个人邮箱。适合找专家；不要把候选人的具体背景写得过于个性化。",
       "connect_message": "Hi {firstName}, I'm {senderName} at Funda.ai (Singapore-based research + expert network). We're conducting a paid ({rate_range}) research on {topic_obfuscated}. {highlight} Do you have a personal email where I can send the formal invitation and honorarium details?",
       "follow_up_after_connect": "Hi {firstName}, thanks for connecting!\n\nWe'd love to schedule the 60-min anonymous consultation on {topic_obfuscated}. The honorarium is {rate_range} for your time.\n\nIf you can share a personal email, I'll send over the formal invitation, project brief, and scheduling link.\n\nThanks!",
       "highlight_max_chars": 70,
@@ -34,7 +34,7 @@
     },
     "type3_detailed_inmail": {
       "label": "详细背景版",
-      "description": "完整自我介绍 + 平台说明 + 项目背景 + 付费邀请 + 邮箱请求。无字数限制，适合 InMail 或 type1/type2 接受后的 follow-up 长文。",
+      "description": "完整自我介绍 + 平台说明 + 项目背景 + 付费邀请 + 邮箱请求。无字数限制，适合 InMail 或 type1/type2 接受后的 follow-up 长文；访谈用途仍使用通用认可句，避免过度个性化。",
       "connect_message": "Hi {firstName},\n\nI hope you're doing well. I'm {senderName} at Funda.ai (https://funda.ai), a Singapore-based platform combining AI-powered research and expert networks to deliver industry insights.\n\nWe're currently supporting a project on {topic_obfuscated}. {highlight}\n\nWe'd like to invite you to a paid ({rate_range}), 60-minute, one-on-one, anonymous call, scheduled at your convenience.\n\nIf this resonates, could you share a personal email so I can send the formal invitation and honorarium details?\n\nThanks!\n{senderName}",
       "follow_up_after_connect": "",
       "min_chars": 0,
@@ -64,18 +64,20 @@
     "rate_range": "$300-800/hr"
   },
   "personalization_rules": {
-    "highlight_principle": "宁可概括，不要过细。一句简短的认可，避免暴露用户真正在追的具体技术/材料/节点。如果不确定怎么提炼，直接用 'Your expertise is exactly what we're looking for —' 这种纯概括版本。",
+    "highlight_principle": "按话术目的分流：社交建联（type1_friendly）可以适度个性化；访谈/付费咨询（type2_direct、type3_detailed_inmail）不要把候选人具体背景写得过细，默认使用 'Your experience is highly relevant.'。",
     "highlight_sources": [
       "candidate's broad domain (e.g. 'BEOL', 'ML infra', 'gaming overseas') — 不要写到具体材料/技术/节点（如 Ruthenium / 2nm / specific framework）",
       "candidate's company at high level (e.g. 'at TSMC', 'at Google') — 不要写到具体团队/产品",
       "years of experience in the broad area",
-      "fallback：直接用 'Your expertise is exactly what we're looking for —'"
+      "fallback for social：直接用 'Your expertise is exactly what we're looking for —'",
+      "fallback for interview：直接用 'Your experience is highly relevant.'"
     ],
     "highlight_examples": [
-      "Your expertise is exactly what we're looking for —",
+      "Social: Your expertise is exactly what we're looking for —",
       "Your background at TSMC caught my eye —",
       "Your work in advanced node development is highly relevant —",
-      "Your 10+ years in semiconductor process is exactly the experience we need —"
+      "Your 10+ years in semiconductor process is exactly the experience we need —",
+      "Interview: Your experience is highly relevant."
     ],
     "highlight_avoid_examples": [
       "❌ 'Your BEOL work at TSMC is exactly the expertise...'（暴露 BEOL 这个具体方向）",

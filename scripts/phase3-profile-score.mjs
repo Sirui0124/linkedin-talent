@@ -33,6 +33,7 @@ function parseArgs() {
     batchId: null, input: null, criteria: null, output: null, resume: null,
     useLlm: process.env.LINKEDIN_TALENT_LLM !== '0',
     llmOnly: false,
+    rescoreOnly: false,
     scores: null,
     forceSubagent: false,
     subagentThreshold: Number(process.env.LINKEDIN_TALENT_SUBAGENT_THRESHOLD || 50),
@@ -45,6 +46,7 @@ function parseArgs() {
     if (args[i] === '--resume')   opts.resume   = resolve(args[++i]);
     if (args[i] === '--no-llm')   opts.useLlm = false;
     if (args[i] === '--llm-only') opts.llmOnly = true;
+    if (args[i] === '--rescore-only') opts.rescoreOnly = true;
     if (args[i] === '--scores')   opts.scores   = resolve(args[++i]);
     if (args[i] === '--force-subagent') opts.forceSubagent = true;
   }
@@ -176,7 +178,7 @@ function buildProfileText(profile) {
   const posText = (profile.positions || [])
     .map(p => `${p.company || ''} ${p.title || ''} ${p.desc || ''}`)
     .join(' ');
-  return [profile.headline, profile.summary, posText, (profile.skills || []).join(' ')].join(' ');
+  return [profile.headline, profile.search_card_headline, profile.summary, posText, (profile.skills || []).join(' ')].join(' ');
 }
 
 function fuzzyMatch(target, actual) {
@@ -254,6 +256,140 @@ function targetRoleDurationScore(profile, criteria) {
   return hasUnknownStart ? 40 : 0;
 }
 
+function countHits(text, kws) {
+  const haystack = String(text || '').toLowerCase();
+  return uniqueStrings(kws).filter(kw => haystack.includes(String(kw).toLowerCase())).length;
+}
+
+function clampScore(n) {
+  return Math.max(0, Math.min(100, Math.round(Number.isFinite(n) ? n : 0)));
+}
+
+function scoreFromHits(hitCount, maxHits, base = 25, step = 18) {
+  if (hitCount <= 0) return base;
+  return clampScore(base + Math.min(hitCount, maxHits) * step);
+}
+
+function titleText(profile) {
+  return (profile.positions || []).map(p => p.title || '').join(' ');
+}
+
+function currentPosition(profile) {
+  return profile.positions?.[0] || {};
+}
+
+function isCurrentTargetPosition(profile, criteria) {
+  const p = currentPosition(profile);
+  if (!p.company) return false;
+  return matchesAnyCompany(p.company, criteria.hard_filters?.any_of_companies || []);
+}
+
+function dimSemanticText(d) {
+  return `${d.key || ''} ${d.label || ''} ${d.description || ''}`.toLowerCase();
+}
+
+function criteriaTopicText(criteria) {
+  const sk = criteria.search_keywords || {};
+  return [
+    criteria.topic_specific,
+    criteria.research_precheck?.research_context,
+    ...(criteria.research_questions || []).map(q => q.ask),
+    ...(criteria.scoring_dimensions || []).map(d => `${d.label || ''} ${d.description || ''}`),
+    ...(criteria.hard_filters?.topic_groups || []).map(g => `${g.label || ''} ${asArray(g.any_kw).join(' ')}`),
+    ...asArray(sk.primary),
+    ...asArray(sk.secondary),
+    ...asArray(sk.fallback),
+    ...asArray(sk.company_topic_matrix).flatMap(row => asArray(row.queries)),
+    ...asArray(criteria.must_answer_evidence),
+  ].filter(Boolean).join(' ');
+}
+
+function productKeywords(criteria) {
+  const topicGroups = criteria.hard_filters?.topic_groups || [];
+  const productGroups = topicGroups.filter(g => /product|technology|technical|feature|ai|engineering|workload|coverage|adoption|产品|技术|课题|覆盖/i.test(`${g.label || ''}`));
+  return uniqueStrings([
+    ...productGroups.flatMap(g => asArray(g.any_kw)),
+    ...genericDimensionKeywords({ key: 'topic', label: 'topic', description: criteriaTopicText(criteria) }, criteria),
+  ]);
+}
+
+function commercialKeywords(criteria) {
+  const topicGroups = criteria.hard_filters?.topic_groups || [];
+  const commercialGroups = topicGroups.filter(g => /commercial|channel|consumption|gtm|sales|marketplace|partner/i.test(`${g.label || ''}`));
+  return uniqueStrings([
+    ...commercialGroups.flatMap(g => asArray(g.any_kw)),
+    'partner', 'alliance', 'channel', 'sales', 'gtm', 'go-to-market',
+    'marketplace', 'co-sell', 'business development', 'ecosystem',
+    'customer success', 'practice', 'solution', 'solutions',
+  ]);
+}
+
+function consumptionKeywords(criteria) {
+  return uniqueStrings([
+    ...asArray(criteria.must_answer_evidence),
+    'consumption', 'usage', 'pipeline', 'growth', 'expansion', 'revenue',
+    'capacity drawdown', 'drawdown', 'commit', 'marketplace', 'co-sell',
+    'customer', 'customers', 'adoption', 'workload', 'workloads',
+  ]);
+}
+
+function seniorityKeywords() {
+  return [
+    'vp', 'vice president', 'director', 'principal', 'partner', 'head',
+    'lead', 'manager', 'senior', 'sr.', 'architect', 'solution architect',
+    'practice lead', 'business development', 'gtm',
+  ];
+}
+
+function genericDimensionKeywords(d, criteria) {
+  const semantic = dimSemanticText(d);
+  const words = semantic
+    .split(/[^a-z0-9+#.]+/i)
+    .map(w => w.trim())
+    .filter(w => w.length >= 4 && !['whether', 'person', 'candidate', 'exposure', 'description', 'weight'].includes(w));
+  const matchingGroups = (criteria.hard_filters?.topic_groups || []).filter(g =>
+    countHits(`${g.label || ''} ${asArray(g.any_kw).join(' ')}`, words) > 0
+  );
+  return uniqueStrings([...words, ...matchingGroups.flatMap(g => asArray(g.any_kw))]);
+}
+
+function semanticDimensionScore(d, profile, criteria) {
+  const semantic = dimSemanticText(d);
+  const allText = buildProfileText(profile);
+  const titles = titleText(profile);
+  const targetPosition = findTargetPosition(profile, criteria);
+  const currentTarget = isCurrentTargetPosition(profile, criteria);
+
+  if (/channel|partner|alliance|gtm|marketplace|co-sell|commercial|sales|ecosystem/.test(semantic)) {
+    const titleHits = countHits(titles, commercialKeywords(criteria));
+    const textHits = countHits(allText, commercialKeywords(criteria));
+    const hitHits = countHits(hitsSummary(profile.hits), commercialKeywords(criteria));
+    return clampScore(20 + Math.min(titleHits, 3) * 18 + Math.min(textHits, 4) * 9 + Math.min(hitHits, 2) * 8 + (currentTarget ? 10 : 0));
+  }
+
+  if (/consumption|usage|pipeline|growth|drawdown|revenue|workload|expansion/.test(semantic)) {
+    const explicitHits = countHits(allText, consumptionKeywords(criteria));
+    const commercialHits = countHits(allText, commercialKeywords(criteria));
+    const titleHits = countHits(titles, ['sales', 'gtm', 'marketplace', 'partner', 'alliance', 'customer success', 'business development']);
+    return clampScore(15 + Math.min(explicitHits, 4) * 16 + Math.min(commercialHits, 3) * 8 + Math.min(titleHits, 2) * 10);
+  }
+
+  if (/product|technology|technical|feature|ai|coverage|adoption|产品|技术|课题|覆盖/.test(semantic)) {
+    const explicitHits = countHits(allText, productKeywords(criteria));
+    const titleHits = countHits(titles, productKeywords(criteria));
+    return scoreFromHits(explicitHits + titleHits, 5, 20, 14);
+  }
+
+  if (/fresh|seniority|senior|current|recent|资历|当前/.test(semantic)) {
+    const seniorityHits = countHits(titles, seniorityKeywords());
+    const duration = targetRoleDurationScore(profile, criteria);
+    return clampScore(Math.max(duration, 25) + Math.min(seniorityHits, 4) * 10 + (currentTarget || !targetPosition?.endYear ? 10 : 0));
+  }
+
+  const genericHits = countHits(allText, genericDimensionKeywords(d, criteria));
+  return scoreFromHits(genericHits, 4, 30, 12);
+}
+
 function hardFilter(profile, filters) {
   // 公司匹配（宽松：只要任一职位含目标公司即通过）
   if (filters.any_of_companies?.length) {
@@ -285,7 +421,7 @@ function hardFilter(profile, filters) {
 
 // ── L2.5 Rule score ───────────────────────────────────────────────────────────
 function ruleScore(profile, criteria) {
-  const dims = criteria.scoring_dimensions;
+  const dims = criteria.scoring_dimensions || [];
   const targetCos = criteria.hard_filters?.any_of_companies || [];
   const kwList = criteria.hard_filters?.must_have_any_kw || [];
   const text = buildProfileText(profile).toLowerCase();
@@ -316,7 +452,7 @@ function ruleScore(profile, criteria) {
         return bonusKws.some(kw => text.includes(kw.toLowerCase())) ? 60 : 20;
       }
       default:
-        return 50; // 未知维度给中间分
+        return semanticDimensionScore(d, profile, criteria);
     }
   });
 
@@ -336,9 +472,12 @@ function ruleReasoning(profile, dimScores, dims, criteria) {
   const currentNote = targetPosition && (targetPosition.company !== currentCo || targetPosition.title !== currentTitle)
     ? `；当前展示为 ${currentCo} ${currentTitle}`
     : '';
+  const highlightTitle = /partner|alliance|gtm|go-to-market|marketplace|sales|solution|architect|business development|customer|product|technical|ai/i.test(reasonTitle)
+    ? reasonTitle
+    : 'relevant ecosystem work';
   return {
     reasoning: `${reasonCo} ${reasonTitle}，${topDim?.label || ''}高匹配${currentNote}`,
-    highlight_for_outreach: `Your background at ${reasonCo} is exactly what we're looking for —`,
+    highlight_for_outreach: `Your ${highlightTitle} experience at ${reasonCo} is highly relevant —`,
     matched_signals: dims.filter((_, i) => dimScores[i] >= 70).map(d => d.label),
     missed_signals: dims.filter((_, i) => dimScores[i] < 50).map(d => d.label),
   };
@@ -393,7 +532,7 @@ ${positionsText(candidate.positions)}
   "reasoning": "1-2句中文，说明为什么适合或不适合验证本投研问题",
   "matched_signals": ["具体命中信号"],
   "missed_signals": ["具体缺失信号"],
-  "highlight_for_outreach": "英文一句，适合 Connect note 的个性化亮点，不能暴露 ADI+Google 具体研究指向"
+  "highlight_for_outreach": "英文一句，适合 Connect note 的个性化亮点；保持研究话题模糊，不要暴露用户真正要验证的具体公司关系、产品线、交易或投资假设"
 }`;
 }
 
@@ -582,7 +721,7 @@ function getProfileScript(vanity) {
     urn: p.entityUrn||'', firstName: p.firstName||'', lastName: p.lastName||'',
     headline: p.headline||'', summary: (p.summary||'').slice(0,500),
     location: p.geoLocationName||'',
-    positions: positions.map(x => ({title:x.title, company:x.companyName, startYear:x.dateRange?.start?.year, endYear:x.dateRange?.end?.year, desc:(x.description||'').slice(0,150)})),
+    positions: positions.map(x => ({title:x.title, company:x.companyName, startYear:x.dateRange?.start?.year, endYear:x.dateRange?.end?.year, desc:x.description||''})),
     educations: educations.map(x => ({school:x.schoolName, degree:x.degreeName, field:x.fieldOfStudy, startYear:x.dateRange?.start?.year, endYear:x.dateRange?.end?.year})),
     skills: skills.slice(0,10).map(x => x.name),
   });
@@ -617,6 +756,37 @@ async function main() {
     writeFileSync(opts.output, JSON.stringify(output, null, 2));
     console.log('\n── Subagent 重评完成 ───────────────────────────');
     console.log(`LLM成功: ${llm.succeeded}/${llm.attempted}`);
+    console.log(`输出: ${opts.output}`);
+    return;
+  }
+
+  if (opts.rescoreOnly) {
+    if (!existsSync(opts.output)) {
+      console.error(`[error] --rescore-only 需要已有 phase3 输出: ${opts.output}`);
+      process.exit(1);
+    }
+    const current = JSON.parse(readFileSync(opts.output, 'utf8'));
+    const results = { passed: current.passed || [], failed: current.failed || [] };
+    for (const c of results.passed) {
+      const { dimScores, score } = ruleScore(c, criteria);
+      const tier = score >= 75 ? 1 : score >= 50 ? 2 : score >= 30 ? 3 : 0;
+      const rr = ruleReasoning(c, dimScores, criteria.scoring_dimensions, criteria);
+      c.scores_breakdown = criteria.scoring_dimensions.map((d, i) => ({ key: d.key, score: dimScores[i] }));
+      c.score = score;
+      c.tier = tier;
+      c.scored_by = 'rule_v2';
+      Object.assign(c, rr);
+    }
+    const output = summarize(
+      results,
+      current.summary?.total || results.passed.length + results.failed.length,
+      current.summary?.pre_dropped || 0,
+      current.summary?.stop_reason,
+      { llm: { ...(current.summary?.llm || {}), status: 'rescore_only_rule_v2' } },
+    );
+    writeFileSync(opts.output, JSON.stringify(output, null, 2));
+    console.log('\n── 规则重评分完成 ───────────────────────────');
+    console.log(`重评候选: ${results.passed.length}`);
     console.log(`输出: ${opts.output}`);
     return;
   }
@@ -663,6 +833,8 @@ async function main() {
       results.failed.push({ ...cand, reason: `HTTP ${code}` });
       continue;
     }
+    profile.hits = cand.hits || [];
+    profile.search_card_headline = cand.headline || '';
 
     // L2 硬筛
     const l2 = hardFilter(profile, criteria.hard_filters || {});

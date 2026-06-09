@@ -276,6 +276,7 @@ async function main() {
     output_path: opts.output,
     planned_groups: plan.length,
     api_calls: 0,
+    executed_searches: [],
     stopped_at_stage: null,
     stop_reason: null,
     generated_at: null,
@@ -331,6 +332,17 @@ async function main() {
       }
 
       console.log(`+${results.length} · 去重 ${store.size}`);
+      summary.executed_searches.push({
+        stage: item.stage,
+        keyword: item.keyword,
+        strategy: item.strategy,
+        company: item.companyName || '',
+        page: page + 1,
+        returned: results.length,
+        dedup_total: store.size,
+        company_filter: Boolean(item.companyId),
+        note: item.note || '',
+      });
       writeOutput(opts.output, summary, [...store.values()].slice(0, targetMax), true);
 
       if (summary.stop_reason || store.size >= targetMax) break;
