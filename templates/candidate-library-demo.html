@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkedIn Candidate Library Demo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f2f4f7;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px;color:#111}
+
+/* TOP BAR */
+#topbar{background:#1a1a2e;color:#eee;padding:9px 18px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+#topbar .title{font-size:14px;font-weight:700;color:#fff;white-space:nowrap;margin-right:4px}
+#topbar .meta{font-size:12px;color:#888;white-space:nowrap}
+#topbar .meta strong{color:#ccc;font-weight:500}
+#topbar-actions{margin-left:auto;display:flex;gap:7px;flex-shrink:0}
+.btn-sm{padding:4px 12px;border-radius:5px;border:1px solid #3a3a55;cursor:pointer;font-size:12px;background:transparent;color:#bbb;transition:all .15s;text-decoration:none}
+.btn-sm:hover{background:#252540;color:#fff;border-color:#5555aa}
+.btn-sm.active{background:#252540;color:#fff;border-color:#5555aa}
+
+/* MAIN */
+#main{display:flex;flex:1;overflow:hidden}
+#main.detail-collapsed #detail{display:none}
+#main.detail-collapsed #sidebar{width:auto;flex:1}
+#main.detail-collapsed .table-head,#main.detail-collapsed .table-row{grid-template-columns:minmax(150px,1.2fr) minmax(115px,.9fr) 88px minmax(135px,.95fr) minmax(220px,1.5fr) minmax(170px,1.1fr) 70px 78px 14px}
+#main.detail-collapsed .optional-col{display:block}
+
+/* LEFT SIDEBAR */
+#sidebar{width:340px;background:#fff;border-right:1px solid #e4e7ec;display:flex;flex-direction:column;flex-shrink:0;transition:width .18s}
+#sidebar-rail{height:44px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0}
+#sidebar-title{font-size:12px;color:#667085;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sidebar-body{border-bottom:1px solid #f0f2f5;padding:10px;flex-shrink:0}
+#search-box{width:100%;padding:6px 10px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
+#search-box::placeholder{color:#bbb}
+#search-box:focus{border-color:#4a90d9;background:#fff}
+
+.panel{border:1px solid #eef1f5;border-radius:7px;margin-top:8px;background:#fff;overflow:hidden}
+.panel-head{height:30px;padding:0 8px;display:flex;align-items:center;cursor:pointer;user-select:none}
+.panel-title{font-size:10px;font-weight:700;color:#a3adbd;text-transform:uppercase;letter-spacing:.8px}
+.panel-caret{margin-left:auto;color:#98a2b3;font-size:11px}
+.panel-content{padding:0 8px 8px}
+.panel.collapsed .panel-content{display:none}
+.panel.collapsed .panel-caret{transform:rotate(-90deg)}
+.chip-row{display:flex;gap:5px;flex-wrap:wrap}
+.chip{padding:3px 9px;border-radius:20px;border:1px solid #ddd;font-size:11px;cursor:pointer;white-space:nowrap;font-weight:500;transition:all .15s;background:#fff;color:#555}
+.chip:hover{background:#f5f5f5}
+.chip.active{background:#eee;color:#111;border-color:#999;font-weight:600}
+.chip.t1.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.chip.t2.active{background:#1565c0;color:#fff;border-color:#1565c0}
+.chip.t3.active{background:#616161;color:#fff;border-color:#616161}
+.chip.green.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.chip.blue.active{background:#1565c0;color:#fff;border-color:#1565c0}
+.chip.orange.active{background:#b54708;color:#fff;border-color:#b54708}
+.chip.red.active{background:#c62828;color:#fff;border-color:#c62828}
+select{width:100%;padding:6px 8px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
+select+select{margin-top:7px}
+#project-filter{width:100%;padding:6px 8px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
+.filter-line{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr);gap:7px}
+.filter-hint{font-size:11px;color:#98a2b3;margin-top:7px;line-height:1.45}
+.project-list{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;max-height:54px;overflow:auto}
+.project-option{border:1px solid #d0d8e4;background:#fff;color:#667085;border-radius:14px;padding:3px 8px;font-size:11px;cursor:pointer;max-width:136px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.project-option:hover{background:#f5f7fa}
+.project-option.active{background:#e8f0fe;color:#175cd3;border-color:#b7c9f8;font-weight:700}
+
+#candidate-list{overflow-y:auto;flex:1;background:#fff}
+.candidate-table{min-width:100%;font-size:11px}
+.table-head,.table-row{display:grid;grid-template-columns:minmax(112px,1.28fr) minmax(68px,.75fr) 64px 42px 14px;align-items:center;column-gap:7px}
+.table-head{position:sticky;top:0;z-index:2;background:#fbfcfe;border-bottom:1px solid #e4e7ec;color:#98a2b3;font-weight:700;padding:7px 10px;text-transform:uppercase;letter-spacing:.4px}
+.table-row{cursor:pointer;border-bottom:1px solid #f4f5f7;padding:8px 10px;transition:background .1s;min-height:46px}
+.table-row:hover{background:#fafbfd}
+.table-row.selected{background:#e8f0fe}
+.cell-main{min-width:0}
+.cand-name{font-size:12px;font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cand-sub{font-size:11px;color:#8a94a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.cell-project,.cell-progress,.cell-company,.cell-history,.cell-email,.cell-link,.cell-score{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#667085}
+.cell-progress{font-weight:600;color:#175cd3}
+.cell-link a{color:#1565c0;text-decoration:none}
+.cell-link a:hover{text-decoration:underline}
+.cell-score{font-weight:700;color:#111;text-align:right}
+.optional-col{display:none}
+.cell-progress.unselected{color:#98a2b3}
+.cell-progress.interested,.cell-progress.aligned{color:#2e7d32}
+.cell-progress.interviewed{color:#b54708}
+.status-dot{width:7px;height:7px;border-radius:50%;justify-self:end;background:#dde2ea}
+.status-dot.connect{background:#43a047}
+.status-dot.reject{background:#e53935}
+.status-dot.email{background:#1565c0}
+#sidebar-footer{padding:8px 10px;border-top:1px solid #f0f2f5;color:#98a2b3;font-size:11px;display:flex;justify-content:space-between;flex-shrink:0}
+
+/* RIGHT DETAIL */
+#detail{flex:1;overflow-y:auto;padding:20px 24px;background:#f2f4f7}
+#detail.empty{display:flex;align-items:center;justify-content:center;color:#bbb;font-size:14px}
+.detail-header{display:flex;align-items:center;gap:10px;margin-bottom:5px;flex-wrap:wrap}
+.detail-name{font-size:20px;font-weight:700;color:#111;flex-shrink:0}
+.li-link{flex-shrink:0;font-size:12px;color:#1565c0;text-decoration:none;white-space:nowrap}
+.li-link:hover{text-decoration:underline}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.detail-submeta{font-size:12px;color:#777;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-email{font-size:12px;color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+.btn-connect{background:#fff;color:#2e7d32;border:1.5px solid #43a047;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-connect:hover{background:#f1f8f1}
+.btn-connect.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
+.btn-reject{background:#fff;color:#c62828;border:1.5px solid #e53935;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-reject:hover{background:#fdf2f2}
+.btn-reject.active{background:#c62828;color:#fff;border-color:#c62828}
+
+.section{background:#fff;border-radius:7px;border:1px solid #e8ecf0;padding:12px 14px;margin-bottom:10px}
+.section-title{font-size:10px;font-weight:700;color:#b0b8c4;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.connect-section{margin-bottom:10px}
+#connect-msg{width:100%;border:1px solid #e4e8ed;border-radius:5px;padding:9px 11px;font-size:12px;line-height:1.55;resize:vertical;min-height:72px;font-family:inherit;outline:none;color:#333;background:#fafbfc;display:block}
+#connect-msg:focus{border-color:#4a90d9;background:#fff}
+.char-count{font-size:11px;color:#b8c0cc;text-align:right;margin-top:4px}
+.char-count.warn{color:#e67e22}
+.char-count.over{color:#e53935}
+.action-stack{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.action-row{display:flex;gap:8px;align-items:center}
+.progress-select{width:132px;padding:5px 8px;border:1px solid #d0d8e4;border-radius:5px;background:#fff;color:#344054;font-size:12px;outline:none}
+.progress-select:focus{border-color:#4a90d9}
+.comment-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 0 12px}
+.comment-tag{border:1px solid #d0d8e4;background:#fff;color:#344054;border-radius:14px;padding:3px 7px;font-size:11px;display:inline-flex;align-items:center;gap:5px}
+.comment-tag button{border:0;background:transparent;color:#98a2b3;cursor:pointer;font-size:12px;line-height:1;padding:0}
+.comment-input{min-width:160px;flex:1;border:1px solid #e0e4ea;border-radius:14px;padding:4px 9px;font-size:11px;outline:none;background:#fafbfc;color:#333}
+.comment-input:focus{border-color:#4a90d9;background:#fff}
+.two-col{display:flex;gap:10px;margin-bottom:10px}
+.two-col .section{flex:1;margin-bottom:0}
+.score-inline{font-size:13px;line-height:1.6;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px;margin-bottom:6px}
+.score-seg{display:inline-flex;align-items:baseline;gap:3px}
+.s-label{color:#888;font-size:12px}
+.s-val{font-weight:700;font-size:14px}
+.s-val.high{color:#2e7d32}
+.s-val.mid{color:#e65100}
+.s-val.low{color:#c62828}
+.score-dot{color:#d0d8e4;margin:0 5px;font-size:12px}
+.reasoning{font-size:11px;color:#96a0b0;line-height:1.55;font-style:italic}
+.signal-line{display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px}
+.signal-icon{flex-shrink:0;font-weight:700;font-size:11px;margin-top:1px}
+.signal-line.match .signal-icon{color:#2e7d32}
+.signal-line.match .signal-text{color:#2a2a2a}
+.signal-line.miss .signal-icon{color:#c62828}
+.signal-line.miss .signal-text{color:#888}
+
+.library-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.library-field{background:#fafbfc;border:1px solid #eef1f5;border-radius:6px;padding:8px;min-width:0}
+.library-label{font-size:10px;color:#a3adbd;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.library-value{font-size:12px;color:#344054;line-height:1.45;overflow-wrap:anywhere}
+.library-value.strong{font-weight:700;color:#111}
+.library-value.green{color:#2e7d32;font-weight:700}
+.library-value.orange{color:#b54708;font-weight:700}
+.library-value.red{color:#c62828;font-weight:700}
+.library-records{display:flex;flex-direction:column;gap:5px}
+.library-record{font-size:12px;color:#344054;line-height:1.45;background:#fafbfc;border:1px solid #eef1f5;border-radius:5px;padding:6px 8px}
+
+.exp-list{display:flex;flex-direction:column;gap:10px}
+.exp-item{display:flex;gap:10px;align-items:flex-start}
+.exp-icon{width:30px;height:30px;background:#e8ecf0;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.exp-icon svg{width:14px;height:14px;fill:none;stroke:#aab4c4;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.exp-body{min-width:0;flex:1}
+.exp-company{font-size:12px;font-weight:700;color:#111}
+.exp-title{font-size:12px;color:#555;margin-top:1px}
+.exp-period{font-size:11px;color:#aab4c4;margin-top:1px}
+.exp-desc{font-size:11px;color:#888;margin-top:3px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;cursor:help}
+
+/* BOTTOM BAR */
+#bottombar{background:#fff;border-top:1px solid #e4e7ec;padding:10px 18px;display:flex;align-items:center;flex-shrink:0}
+.cnt-group{display:flex;align-items:baseline;gap:4px}
+.cnt-group+.cnt-group{margin-left:18px}
+.cnt-label{font-size:13px;color:#96a0b0}
+.cnt-val{font-weight:700;font-size:13px}
+.cnt-val.green{color:#2e7d32}
+.cnt-val.red{color:#c62828}
+.cnt-val.gray{color:#888}
+#bottombar-btns{margin-left:auto;display:flex;gap:8px}
+.btn-export{background:#fff;color:#555;border:1px solid #d0d8e4;padding:7px 15px;border-radius:6px;cursor:pointer;font-size:13px;transition:all .15s}
+.btn-export:hover{background:#f5f7fa}
+.btn-copy{background:#1a1a2e;color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s}
+.btn-copy:hover{background:#2a2a48}
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 16px;border-radius:5px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+
+@media (max-width:920px){
+  #sidebar{width:290px}
+  .library-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="title">LinkedIn Candidate Library</span>
+  <span class="meta" id="dashboard-meta">模拟数据 · 候选人库 Demo · 共 <strong>0</strong> 人</span>
+  <div id="topbar-actions">
+    <button class="btn-sm" id="toggle-detail" onclick="toggleDetail()">收起详情</button>
+    <button class="btn-sm" onclick="clearAll()">清除标记</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-rail">
+      <div id="sidebar-title">候选人库</div>
+    </div>
+    <div id="sidebar-body">
+      <input id="search-box" type="text" placeholder="搜索姓名 / 公司 / 邮箱 / 项目..." oninput="filterList()">
+      <div class="panel">
+        <div class="panel-head" onclick="togglePanel(this)">
+          <span class="panel-title">筛选</span><span class="panel-caret">⌄</span>
+        </div>
+        <div class="panel-content">
+          <div class="filter-line">
+            <input id="project-filter" placeholder="搜索项目 / 全部项目" oninput="renderProjectList(); filterList()" onchange="renderProjectList(); filterList()">
+            <select id="progress-filter" onchange="filterList()"></select>
+          </div>
+          <div class="project-list" id="project-list"></div>
+          <div class="filter-hint">项目支持搜索；最高到达进度和搜索词会同时生效。</div>
+        </div>
+      </div>
+    </div>
+    <div id="candidate-list"></div>
+    <div id="sidebar-footer"><span id="result-count">0 / 0</span><span id="active-view-label">候选人表格</span></div>
+  </div>
+
+  <div id="detail" class="empty">← 从左侧选择候选人</div>
+</div>
+
+<div id="bottombar">
+  <div class="cnt-group"><span class="cnt-label">准确</span><span class="cnt-val green" id="cnt-connect">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">不准确</span><span class="cnt-val red" id="cnt-reject">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">未标记</span><span class="cnt-val gray" id="cnt-skip">0</span></div>
+  <div id="bottombar-btns">
+    <button class="btn-export" onclick="exportDecisions()">导出当前视图</button>
+    <button class="btn-copy" onclick="copyAccurateList()">复制准确名单</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const CANDIDATES = [
+  {
+    name:'Emma Lin', vanity:'emma-lin-demo', current_title:'ServiceNow Alliance Director', current_company:'Cognizant',
+    headline:'ServiceNow Alliance Director at Cognizant', tier:1, score:92, project:'ServiceNow Channel Check',
+    progress:'interested', email:'emma.lin.personal@example.com', email_status:'verified', source:'Partner',
+    last_touch:'2026-06-16', first_batch:'search_20260615_ServiceNow', recent_batch:'search_20260616_ServiceNow',
+    projects:['ServiceNow Channel Check','Salesforce Agentforce SI'], repeat_count:2, connect_status:'有意向',
+    connect_message:"Hi Emma, I'm Zadie at Funda.ai. We're conducting a paid research on enterprise workflow software channel demand and AI adoption. Your experience is highly relevant. Do you have a personal email where I can send the formal invitation and honorarium details?",
+    profile_url:'https://www.linkedin.com/in/emma-lin-demo',
+    scores_breakdown:[{key:'company_match',score:96},{key:'topic_depth',score:91},{key:'target_role_duration',score:88},{key:'bonus',score:80}],
+    reasoning:'Cognizant US + ServiceNow alliance/practice leadership, directly aligned with channel and AI adoption checks.',
+    matched_signals:['Cognizant US ServiceNow practice','Partner pipeline and AI workflow adoption','Current channel-facing role'],
+    missed_signals:['No exact quota ownership shown'],
+    positions:[
+      {company:'Cognizant',title:'ServiceNow Alliance Director',startYear:2021,endYear:null,desc:'Leads partner GTM and customer transformation motions for ServiceNow.'},
+      {company:'Accenture',title:'ServiceNow Practice Manager',startYear:2016,endYear:2021,desc:'Managed enterprise workflow implementation programs.'}
+    ]
+  },
+  {
+    name:'Marcus Hale', vanity:'marcus-hale-demo', current_title:'Data Cloud Practice Lead', current_company:'Slalom',
+    headline:'Snowflake and Data Cloud Practice Lead', tier:1, score:89, project:'Snowflake Consumption',
+    progress:'communicating', email:'', email_status:'requested', source:'Partner',
+    last_touch:'2026-06-15', first_batch:'search_20260615_Snowflake', recent_batch:'search_20260615_Snowflake',
+    projects:['Snowflake Consumption'], repeat_count:1, connect_status:'沟通中',
+    connect_message:"Hi Marcus, I'm Zadie at Funda.ai. Paid expert call on data cloud consumption and AI product adoption. Your experience is highly relevant. Personal email for the formal invite and honorarium details?",
+    profile_url:'https://www.linkedin.com/in/marcus-hale-demo',
+    scores_breakdown:[{key:'company_match',score:90},{key:'topic_depth',score:92},{key:'target_role_duration',score:82},{key:'bonus',score:70}],
+    reasoning:'Strong external partner view into Snowflake consumption, Cortex adoption and client budgets.',
+    matched_signals:['Snowflake partner practice','Consumption and Cortex customer adoption exposure','Client budget visibility'],
+    missed_signals:['No Snowflake internal sales history'],
+    positions:[
+      {company:'Slalom',title:'Data Cloud Practice Lead',startYear:2020,endYear:null,desc:'Leads Snowflake and data cloud implementation work across enterprise clients.'},
+      {company:'Tableau',title:'Partner Solutions Consultant',startYear:2015,endYear:2020,desc:'Supported analytics partner ecosystem.'}
+    ]
+  },
+  {
+    name:'Priya Shah', vanity:'priya-shah-demo', current_title:'Channel Sales Lead, Edge Security', current_company:'Presidio',
+    headline:'Channel Sales Lead for Edge Security and Cloud Security', tier:1, score:87, project:'Cloudflare Fastly Akamai Channel',
+    progress:'aligned', email:'priya.shah@example.com', email_status:'verified', source:'Channel',
+    last_touch:'2026-06-17', first_batch:'search_20260614_Edge', recent_batch:'search_20260617_PANW',
+    projects:['Cloudflare Fastly Akamai Channel','Palo Alto Channel'], repeat_count:2, connect_status:'意向达成',
+    connect_message:"Hi Priya, I'm Zadie at Funda.ai. We're running a paid research on edge security and channel demand. Your experience is highly relevant. May I send the formal invite and honorarium details to your personal email?",
+    profile_url:'https://www.linkedin.com/in/priya-shah-demo',
+    scores_breakdown:[{key:'company_match',score:88},{key:'topic_depth',score:89},{key:'target_role_duration',score:84},{key:'bonus',score:72}],
+    reasoning:'Excellent reseller/channel view into Cloudflare, Akamai and broader security replacement motions.',
+    matched_signals:['Channel reseller visibility','Cloud security and edge product portfolio','Customer replacement feedback'],
+    missed_signals:['May not cover Fastly deeply'],
+    positions:[
+      {company:'Presidio',title:'Channel Sales Lead, Edge Security',startYear:2019,endYear:null,desc:'Works with enterprise customers on edge, WAF, SASE and cloud security vendors.'},
+      {company:'CDW',title:'Security Account Executive',startYear:2014,endYear:2019,desc:'Sold security and web performance products through channel motions.'}
+    ]
+  },
+  {
+    name:'Jonathan Park', vanity:'jonathan-park-demo', current_title:'Director, Data Center Construction', current_company:'ARCO/Murray',
+    headline:'Mission Critical Data Center Construction Director', tier:2, score:78, project:'Nebius Construction Progress',
+    progress:'interviewed', email:'jonathan.park@example.com', email_status:'verified', source:'Ecosystem',
+    last_touch:'2026-06-12', first_batch:'search_20260610_Nebius', recent_batch:'search_20260610_Nebius',
+    projects:['Nebius Construction Progress'], repeat_count:1, connect_status:'已访谈',
+    connect_message:"Hi Jonathan, I'm Zadie at Funda.ai. Paid expert call on data center construction progress and delivery timelines. Your experience is highly relevant. Personal email for details?",
+    profile_url:'https://www.linkedin.com/in/jonathan-park-demo',
+    scores_breakdown:[{key:'company_match',score:72},{key:'topic_depth',score:88},{key:'target_role_duration',score:76},{key:'bonus',score:60}],
+    reasoning:'Strong construction delivery perspective, useful as ecosystem evidence even without direct Nebius employment.',
+    matched_signals:['Mission critical construction','US data center delivery schedule exposure','EPC ecosystem view'],
+    missed_signals:['No direct Nebius overlap found'],
+    positions:[
+      {company:'ARCO/Murray',title:'Director, Data Center Construction',startYear:2018,endYear:null,desc:'Leads mission critical construction programs and data center delivery planning.'},
+      {company:'Turner Construction',title:'Project Manager',startYear:2012,endYear:2018,desc:'Managed industrial and infrastructure construction projects.'}
+    ]
+  },
+  {
+    name:'Laura Klein', vanity:'laura-klein-demo', current_title:'Former Strategic Sourcing Manager', current_company:'Microsoft',
+    headline:'Former Cloud Hardware Strategic Sourcing Manager', tier:2, score:76, project:'CSP NAND Sourcing',
+    progress:'communicating', email:'laura.klein@example.com', email_status:'bounced', source:'Former',
+    last_touch:'2026-06-14', first_batch:'search_20260614_NAND', recent_batch:'search_20260614_NAND',
+    projects:['CSP NAND Sourcing'], repeat_count:1, connect_status:'沟通中',
+    connect_message:"Hi Laura, I'm Zadie at Funda.ai. Paid expert call on cloud hardware sourcing and NAND procurement. Your experience is highly relevant. Personal email for the formal invite and honorarium details?",
+    profile_url:'https://www.linkedin.com/in/laura-klein-demo',
+    scores_breakdown:[{key:'company_match',score:83},{key:'topic_depth',score:74},{key:'target_role_duration',score:70},{key:'bonus',score:66}],
+    reasoning:'Good former CSP procurement signal, but email bounced and needs LinkedIn follow-up.',
+    matched_signals:['Former cloud sourcing','Storage commodity exposure','Can discuss supplier pricing pressure'],
+    missed_signals:['NAND ownership needs manual confirmation'],
+    positions:[
+      {company:'Microsoft',title:'Strategic Sourcing Manager',startYear:2017,endYear:2024,desc:'Covered hardware sourcing and supplier negotiations for cloud infrastructure categories.'},
+      {company:'Dell Technologies',title:'Commodity Manager',startYear:2012,endYear:2017,desc:'Managed storage component supplier relationships.'}
+    ]
+  },
+  {
+    name:'Andrew Nguyen', vanity:'andrew-nguyen-demo', current_title:'Agentforce Solution Architect', current_company:'Deloitte',
+    headline:'Salesforce Agentforce and CRM Transformation Architect', tier:2, score:74, project:'Salesforce Agentforce SI',
+    progress:'unselected', email:'', email_status:'missing', source:'Partner',
+    last_touch:'-', first_batch:'search_20260616_Salesforce', recent_batch:'search_20260616_Salesforce',
+    projects:['Salesforce Agentforce SI','ServiceNow Channel Check'], repeat_count:2, connect_status:'未选中',
+    connect_message:"Hi Andrew, I'm Zadie at Funda.ai. We're conducting a paid research on CRM transformation and AI product adoption. Your experience is highly relevant. Do you have a personal email where I can send the formal invitation and honorarium details?",
+    profile_url:'https://www.linkedin.com/in/andrew-nguyen-demo',
+    scores_breakdown:[{key:'company_match',score:78},{key:'topic_depth',score:82},{key:'target_role_duration',score:65},{key:'bonus',score:58}],
+    reasoning:'Relevant SI/product adoption perspective; still untouched in this library.',
+    matched_signals:['Agentforce implementation','CRM transformation','Large SI customer exposure'],
+    missed_signals:['No direct pipeline ownership shown'],
+    positions:[
+      {company:'Deloitte',title:'Agentforce Solution Architect',startYear:2023,endYear:null,desc:'Designs AI-assisted CRM transformation programs.'},
+      {company:'Salesforce',title:'Senior Solution Engineer',startYear:2018,endYear:2023,desc:'Supported enterprise sales cycles and CRM architecture.'}
+    ]
+  },
+  {
+    name:'Sofia Martin', vanity:'sofia-martin-demo', current_title:'Site Development Consultant', current_company:'Azur Datacenter',
+    headline:'Data Center Site Development Consultant in France', tier:3, score:66, project:'Nebius Construction Progress',
+    progress:'not_accept', email:'sofia.martin@example.com', email_status:'verified', source:'Ecosystem',
+    last_touch:'2026-06-11', first_batch:'search_20260610_Nebius', recent_batch:'search_20260610_Nebius',
+    projects:['Nebius Construction Progress'], repeat_count:1, connect_status:'不接受',
+    connect_message:"Hi Sofia, I'm Zadie at Funda.ai. Paid expert call on data center site development in France. Your experience is highly relevant. Personal email for details?",
+    profile_url:'https://www.linkedin.com/in/sofia-martin-demo',
+    scores_breakdown:[{key:'company_match',score:54},{key:'topic_depth',score:70},{key:'target_role_duration',score:65},{key:'bonus',score:45}],
+    reasoning:'Related to French site development, but weak on Nebius-specific construction progress.',
+    matched_signals:['France data center site planning','Power and permit exposure'],
+    missed_signals:['No Nebius or contractor link found'],
+    positions:[
+      {company:'Azur Datacenter',title:'Site Development Consultant',startYear:2020,endYear:null,desc:'Supports location evaluation, power and permit coordination for data center projects.'}
+    ]
+  },
+  {
+    name:'David Wu', vanity:'david-wu-demo', current_title:'Optical Module Product Line Manager', current_company:'Coherent',
+    headline:'Optical Module Product Line Manager', tier:1, score:90, project:'Semtech TIA Optical Modules',
+    progress:'interested', email:'david.wu@example.com', email_status:'verified', source:'Competitor',
+    last_touch:'2026-06-16', first_batch:'search_20260616_TIA', recent_batch:'search_20260616_TIA',
+    projects:['Semtech TIA Optical Modules'], repeat_count:1, connect_status:'有意向',
+    connect_message:"Hi David, I'm Zadie at Funda.ai. We're conducting a paid research on optical modules and TIA supplier trends. Your experience is highly relevant. Do you have a personal email where I can send the formal invitation and honorarium details?",
+    profile_url:'https://www.linkedin.com/in/david-wu-demo',
+    scores_breakdown:[{key:'company_match',score:92},{key:'topic_depth',score:90},{key:'target_role_duration',score:86},{key:'bonus',score:75}],
+    reasoning:'Highly relevant optical module/product line view for Semtech TIA market share and competition.',
+    matched_signals:['Optical module product line','TIA supplier selection visibility','Datacom optics demand'],
+    missed_signals:['Not Semtech internal'],
+    positions:[
+      {company:'Coherent',title:'Optical Module Product Line Manager',startYear:2019,endYear:null,desc:'Owns product line planning for datacom optical modules and related components.'},
+      {company:'Lumentum',title:'Product Manager',startYear:2014,endYear:2019,desc:'Managed transceiver roadmap and customer requirements.'}
+    ]
+  }
+];
+
+const progressLabels = {
+  unselected:'未选中',
+  communicating:'沟通中',
+  interested:'有意向',
+  aligned:'意向达成',
+  interviewed:'已访谈',
+  not_accept:'不接受'
+};
+const progressOrder = ['unselected','communicating','interested','aligned','interviewed','not_accept'];
+const emailLabels = {
+  all:'全部邮箱',
+  verified:'有邮箱',
+  requested:'已索取',
+  missing:'待索取',
+  bounced:'邮箱退信'
+};
+const decisions = {};
+let currentVanity = CANDIDATES[0]?.vanity || null;
+
+CANDIDATES.forEach(c => {
+  decisions[c.vanity] = { action: 'skip', note: c.connect_message || '', edited: false, tags: [] };
+});
+
+function init() {
+  renderProjectList();
+  fillSelect('progress-filter', [['all','全部进度'], ...Object.entries(progressLabels).map(([k, v]) => [k, v])]);
+  document.getElementById('dashboard-meta').innerHTML = `模拟数据 · 候选人库 Demo · 共 <strong>${CANDIDATES.length}</strong> 人`;
+  renderList();
+  if (currentVanity) selectCandidate(currentVanity);
+}
+
+function renderProjectList() {
+  const q = document.getElementById('project-filter')?.value.trim().toLowerCase() || '';
+  const projects = unique(CANDIDATES.map(c => c.project));
+  const visible = projects.filter(project => !q || q === '全部项目' || project.toLowerCase().includes(q));
+  const exact = projects.find(project => project.toLowerCase() === q);
+  document.getElementById('project-list').innerHTML = [
+    `<button class="project-option ${!q || q === '全部项目' ? 'active' : ''}" onclick="setProjectFilter('')">全部项目</button>`,
+    ...visible.map(project => `<button class="project-option ${exact === project ? 'active' : ''}" title="${esc(project)}" onclick="setProjectFilter('${escAttr(project)}')">${esc(shortProject(project))}</button>`)
+  ].join('');
+}
+
+function setProjectFilter(project) {
+  document.getElementById('project-filter').value = project;
+  renderProjectList();
+  filterList();
+}
+
+function fillSelect(id, options) {
+  document.getElementById(id).innerHTML = options.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
+}
+
+function filteredCandidates() {
+  const q = document.getElementById('search-box').value.toLowerCase();
+  const project = document.getElementById('project-filter').value.trim().toLowerCase();
+  const progress = document.getElementById('progress-filter').value;
+  return CANDIDATES.filter(c => {
+    if (project && project !== '全部项目' && !c.project.toLowerCase().includes(project)) return false;
+    if (progress !== 'all' && c.progress !== progress) return false;
+    if (q) {
+      const hay = [c.name, c.current_company, c.current_title, c.headline, c.email, c.project, c.projects.join(' '), c.source].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderList() {
+  const list = document.getElementById('candidate-list');
+  const filtered = filteredCandidates();
+  if (!filtered.find(c => c.vanity === currentVanity)) currentVanity = filtered[0]?.vanity || null;
+
+  const rowsHtml = filtered.map(c => {
+    const d = decisions[c.vanity];
+    const dotCls = d.action === 'connect' ? 'connect' : d.action === 'reject' ? 'reject' : c.email_status === 'verified' ? 'email' : '';
+    const selCls = c.vanity === currentVanity ? ' selected' : '';
+    const email = c.email || emailLabels[c.email_status] || '';
+    const history = compactHistory(c.positions);
+    return `<div class="table-row${selCls}" onclick="selectCandidate('${c.vanity}')">
+      <div class="cell-main">
+        <div class="cand-name">${esc(c.name)}</div>
+        <div class="cand-sub" title="${esc(history)}">${esc(history)}</div>
+      </div>
+      <div class="cell-project" title="${esc(c.project)}">${esc(shortProject(c.project))}</div>
+      <div class="cell-progress ${esc(c.progress)}">${esc(progressLabels[c.progress])}</div>
+      <div class="cell-score">${esc(c.score)}</div>
+      <div class="cell-company optional-col" title="${esc(c.current_company)}">${esc(c.current_company)}</div>
+      <div class="cell-history optional-col" title="${esc(history)}">${esc(history)}</div>
+      <div class="cell-email optional-col" title="${esc(email)}">${esc(email)}</div>
+      <div class="cell-link optional-col"><a href="${esc(c.profile_url)}" target="_blank" onclick="event.stopPropagation()">LinkedIn</a></div>
+      <div class="status-dot ${dotCls}"></div>
+    </div>`;
+  }).join('');
+  list.innerHTML = `<div class="candidate-table">
+    <div class="table-head"><div>候选人</div><div>项目</div><div>进度</div><div>AI评分</div><div class="optional-col">所在公司</div><div class="optional-col">履历简版</div><div class="optional-col">邮箱</div><div class="optional-col">链接</div><div></div></div>
+    ${rowsHtml || '<div class="empty" style="height:120px;background:#fff">没有符合筛选的人选</div>'}
+  </div>`;
+
+  document.getElementById('result-count').textContent = `${filtered.length} / ${CANDIDATES.length}`;
+  document.getElementById('active-view-label').textContent = '候选人表格';
+  updateCounts();
+  if (currentVanity) renderDetail(currentVanity);
+  else document.getElementById('detail').className = 'empty', document.getElementById('detail').innerHTML = '没有符合筛选的人选';
+}
+
+function selectCandidate(vanity) {
+  currentVanity = vanity;
+  renderDetail(vanity);
+  renderListOnlySelection();
+}
+
+function renderListOnlySelection() {
+  document.querySelectorAll('.table-row').forEach(item => item.classList.remove('selected'));
+  const nodes = [...document.querySelectorAll('.table-row')];
+  const idx = filteredCandidates().findIndex(c => c.vanity === currentVanity);
+  if (idx >= 0 && nodes[idx]) nodes[idx].classList.add('selected');
+}
+
+function renderDetail(vanity) {
+  const c = CANDIDATES.find(x => x.vanity === vanity);
+  if (!c) return;
+  const d = decisions[vanity];
+  const profileUrl = c.profile_url || `https://www.linkedin.com/in/${vanity}`;
+  const pos = c.positions || [];
+  const totalYrs = (() => {
+    const starts = pos.map(p => p.startYear).filter(Boolean);
+    return starts.length ? new Date().getFullYear() - Math.min(...starts) : 0;
+  })();
+  const submetaParts = [[c.current_title, c.current_company].filter(Boolean).join(' @ '), totalYrs ? `${totalYrs}yr` : ''].filter(Boolean).join(' · ');
+  const dims = c.scores_breakdown || [];
+  const dimLabels = { company_match:'公司', topic_depth:'岗位', seniority_focus:'目标岗时长', target_role_duration:'目标岗时长', bonus:'加分' };
+  const scoreHtml = dims.map((dim, i) => {
+    const sc = dim.score ?? 0;
+    const cls = sc >= 75 ? 'high' : sc >= 50 ? 'mid' : 'low';
+    const dot = i < dims.length - 1 ? '<span class="score-dot">·</span>' : '';
+    return `<span class="score-seg"><span class="s-label">${esc(dimLabels[dim.key] || dim.key)} </span><span class="s-val ${cls}">${sc}</span></span>${dot}`;
+  }).join('');
+  const matchedHtml = (c.matched_signals || []).map(s =>
+    `<div class="signal-line match"><span class="signal-icon">✓</span><span class="signal-text">${esc(s)}</span></div>`
+  ).join('');
+  const missedHtml = (c.missed_signals || []).map(s =>
+    `<div class="signal-line miss"><span class="signal-icon">✗</span><span class="signal-text">${esc(s)}</span></div>`
+  ).join('');
+  const expHtml = pos.map(p => {
+    const start = p.startYear || '?';
+    const end = p.endYear || '至今';
+    const dur = ((p.endYear || new Date().getFullYear()) - (p.startYear || new Date().getFullYear()));
+    const durStr = dur > 0 ? ` (${dur}yr)` : '';
+    const desc = p.desc ? `<div class="exp-desc" title="${esc(p.desc)}">${esc(p.desc)}</div>` : '';
+    return `<div class="exp-item">
+      <div class="exp-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div>
+      <div class="exp-body">
+        <div class="exp-company">${esc(p.company || '')}</div>
+        <div class="exp-title">${esc(p.title || '')}</div>
+        <div class="exp-period">${start} – ${end}${durStr}</div>
+        ${desc}
+      </div>
+    </div>`;
+  }).join('');
+  const caActive = d.action === 'connect' ? ' active' : '';
+  const reActive = d.action === 'reject' ? ' active' : '';
+  const emailDisplay = c.email || emailLabels[c.email_status] || '待索取';
+  const commentHtml = `<div class="comment-bar">
+      ${(d.tags || []).map((tag, i) => `<span class="comment-tag">${esc(tag)}<button onclick="removeCommentTag(${i})" title="删除标签">×</button></span>`).join('')}
+      <input class="comment-input" id="comment-input" placeholder="添加备注标签，回车确认" onkeydown="onCommentKeydown(event)">
+    </div>`;
+  const progressSelectHtml = `<select class="progress-select" onchange="setProgressFromSelect(this.value)">${progressOrder.map(key => `<option value="${esc(key)}" ${key === c.progress ? 'selected' : ''}>${esc(progressLabels[key])}</option>`).join('')}</select>`;
+  const otherRecords = libraryOtherRecords(c);
+  const otherRecordsHtml = otherRecords.length ? `<div class="section">
+      <div class="section-title">库内其他记录</div>
+      <div class="library-records">${otherRecords.map(record => `<div class="library-record">${esc(record)}</div>`).join('')}</div>
+    </div>` : '';
+
+  document.getElementById('detail').className = '';
+  document.getElementById('detail').innerHTML = `
+    <div class="detail-header">
+      <span class="detail-name">${esc(c.name)}</span>
+      <a href="${profileUrl}" target="_blank" class="li-link">LinkedIn ↗</a>
+      <span class="header-email">邮箱 ${esc(emailDisplay)}</span>
+      <div class="header-actions">
+        <div class="action-stack">
+          <div class="action-row">
+            <button class="btn-connect${caActive}" onclick="setAction('connect')">准确</button>
+            <button class="btn-reject${reActive}" onclick="setAction('reject')">不准确</button>
+          </div>
+          ${progressSelectHtml}
+        </div>
+      </div>
+    </div>
+    <div class="detail-submeta">${esc(submetaParts)}</div>
+    ${commentHtml}
+
+    <div class="section connect-section">
+      <textarea id="connect-msg" onkeyup="onMsgEdit()">${esc(d.note)}</textarea>
+      <div class="char-count" id="char-count">${d.note.length}/290</div>
+    </div>
+
+    ${otherRecordsHtml}
+
+    ${dims.length || matchedHtml || missedHtml ? `<div class="two-col">
+      ${dims.length ? `<div class="section">
+        <div class="section-title">匹配度</div>
+        <div class="score-inline">${scoreHtml}</div>
+        ${c.reasoning ? `<div class="reasoning">${esc(c.reasoning)}</div>` : ''}
+      </div>` : ''}
+      ${matchedHtml || missedHtml ? `<div class="section">
+        <div class="section-title">命中 / 缺失信号</div>
+        ${matchedHtml}${missedHtml}
+      </div>` : ''}
+    </div>` : ''}
+
+    ${pos.length ? `<div class="section">
+      <div class="section-title">工作经历</div>
+      <div class="exp-list">${expHtml}</div>
+    </div>` : ''}
+  `;
+  updateCharCount();
+}
+
+function toggleDetail() {
+  const main = document.getElementById('main');
+  const collapsed = main.classList.toggle('detail-collapsed');
+  document.getElementById('toggle-detail').textContent = collapsed ? '展开详情' : '收起详情';
+}
+
+function togglePanel(head) {
+  head.closest('.panel')?.classList.toggle('collapsed');
+}
+
+function setProgressFromSelect(key) {
+  if (!currentVanity) return;
+  const c = CANDIDATES.find(x => x.vanity === currentVanity);
+  if (!c || !progressLabels[key]) return;
+  c.progress = key;
+  c.connect_status = progressLabels[key];
+  renderList();
+}
+
+function filterList() { renderList(); }
+
+function setAction(action) {
+  if (!currentVanity) return;
+  const d = decisions[currentVanity];
+  d.action = d.action === action ? 'skip' : action;
+  const ta = document.getElementById('connect-msg');
+  if (ta) d.note = ta.value;
+  renderDetail(currentVanity);
+  renderList();
+}
+
+function onMsgEdit() {
+  if (!currentVanity) return;
+  const ta = document.getElementById('connect-msg');
+  decisions[currentVanity].note = ta.value;
+  decisions[currentVanity].edited = true;
+  updateCharCount();
+}
+
+function onCommentKeydown(event) {
+  if (event.key !== 'Enter' && event.key !== ',') return;
+  event.preventDefault();
+  const input = event.currentTarget;
+  const tag = input.value.replace(/^#+/, '').trim();
+  if (!tag || !currentVanity) return;
+  const tags = decisions[currentVanity].tags || (decisions[currentVanity].tags = []);
+  if (!tags.includes(tag)) tags.push(tag);
+  input.value = '';
+  renderDetail(currentVanity);
+}
+
+function removeCommentTag(index) {
+  if (!currentVanity) return;
+  const tags = decisions[currentVanity].tags || [];
+  tags.splice(index, 1);
+  renderDetail(currentVanity);
+}
+
+function updateCharCount() {
+  const ta = document.getElementById('connect-msg');
+  const cc = document.getElementById('char-count');
+  if (!ta || !cc) return;
+  const n = ta.value.length;
+  cc.textContent = `${n}/290`;
+  cc.className = 'char-count' + (n > 290 ? ' over' : n > 260 ? ' warn' : '');
+}
+
+function updateCounts() {
+  const vals = Object.values(decisions);
+  document.getElementById('cnt-connect').textContent = vals.filter(d => d.action === 'connect').length;
+  document.getElementById('cnt-reject').textContent = vals.filter(d => d.action === 'reject').length;
+  document.getElementById('cnt-skip').textContent = vals.filter(d => d.action === 'skip').length;
+}
+
+function clearAll() {
+  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'skip'; });
+  if (currentVanity) renderDetail(currentVanity);
+  renderList();
+}
+
+function copyAccurateList() {
+  const list = CANDIDATES.filter(c => decisions[c.vanity]?.action === 'connect').map(c => c.vanity).join('\n');
+  if (!list) { showToast('没有标记准确的人选'); return; }
+  navigator.clipboard.writeText(list).then(() => showToast(`已复制 ${list.split('\n').length} 人`));
+}
+
+function exportDecisions() {
+  const visible = new Set(filteredCandidates().map(c => c.vanity));
+  const data = {
+    batch_id:'candidate_library_demo',
+    version:3,
+    exported_at:new Date().toISOString(),
+    filters:{
+      project:document.getElementById('project-filter').value,
+      progress:document.getElementById('progress-filter').value,
+      q:document.getElementById('search-box').value
+    },
+    decisions:CANDIDATES.filter(c => visible.has(c.vanity)).map(c => {
+      const d = decisions[c.vanity];
+      return { vanity:c.vanity, action:d.action, project:c.project, progress:c.progress, email:c.email, tags:d.tags || [], note:d.action === 'connect' ? d.note : undefined, edited:d.edited };
+    })
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'candidate_library_demo_decisions.json';
+  a.click();
+  showToast('当前视图 JSON 已下载');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function shortProject(project) {
+  return String(project || '').replace(/ Channel Check| Consumption| Progress| Optical Modules| Sourcing| SI/g, '').trim() || project;
+}
+function compactHistory(positions) {
+  return (positions || [])
+    .slice(0, 2)
+    .map(p => [p.company, p.title].filter(Boolean).join(' · '))
+    .filter(Boolean)
+    .join(' / ');
+}
+function libraryOtherRecords(c) {
+  return (c.projects || [])
+    .filter(project => project !== c.project)
+    .map(project => `${project} · ${progressLabels[c.progress] || c.connect_status || ''}`);
+}
+function unique(arr) { return [...new Set(arr)].sort(); }
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return esc(s).replace(/'/g,'&#39;');
+}
+
+window.demoApi = { CANDIDATES, decisions, filteredCandidates };
+init();
+</script>
+</body>
+</html>
