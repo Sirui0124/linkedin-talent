@@ -54,13 +54,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .chip.red.active{background:#c62828;color:#fff;border-color:#c62828}
 select{width:100%;padding:6px 8px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
 select+select{margin-top:7px}
-#project-filter{width:100%;padding:6px 8px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc}
 .filter-line{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr);gap:7px}
 .filter-hint{font-size:11px;color:#98a2b3;margin-top:7px;line-height:1.45}
-.project-list{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;max-height:54px;overflow:auto}
-.project-option{border:1px solid #d0d8e4;background:#fff;color:#667085;border-radius:14px;padding:3px 8px;font-size:11px;cursor:pointer;max-width:136px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.project-select{position:relative;min-width:0}
+#project-filter{display:none}
+.project-select-toggle{width:100%;height:31px;border:1px solid #e0e4ea;border-radius:5px;background:#fafbfc;color:#333;font-size:12px;text-align:left;padding:0 26px 0 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.project-select-toggle:after{content:'⌄';position:absolute;right:8px;top:6px;color:#98a2b3;font-size:12px}
+.project-select.open .project-select-toggle{border-color:#4a90d9;background:#fff}
+.project-select.open .project-select-toggle:after{transform:rotate(180deg)}
+.project-menu{display:none;position:absolute;top:35px;left:0;width:286px;max-width:calc(100vw - 40px);background:#fff;border:1px solid #d9e0ea;border-radius:7px;box-shadow:0 12px 30px rgba(16,24,40,.14);z-index:10;padding:7px}
+.project-select.open .project-menu{display:block}
+.project-menu-search{width:100%;padding:6px 8px;border:1px solid #e0e4ea;border-radius:5px;font-size:12px;outline:none;color:#333;background:#fafbfc;margin-bottom:6px}
+.project-menu-search:focus{border-color:#4a90d9;background:#fff}
+.project-list{max-height:196px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+.project-option{border:0;background:#fff;color:#344054;border-radius:5px;padding:7px 8px;font-size:12px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-option:hover{background:#f5f7fa}
-.project-option.active{background:#e8f0fe;color:#175cd3;border-color:#b7c9f8;font-weight:700}
+.project-option.active{background:#e8f0fe;color:#175cd3;font-weight:700}
+.project-empty{padding:8px;color:#98a2b3;font-size:12px}
+.project-name{display:block;overflow:hidden;text-overflow:ellipsis}
+.project-date{display:block;font-size:10px;color:#98a2b3;margin-top:2px}
 
 #candidate-list{overflow-y:auto;flex:1;background:#fff}
 .candidate-table{min-width:100%;font-size:11px}
@@ -82,8 +94,8 @@ select+select{margin-top:7px}
 .cell-progress.interested,.cell-progress.aligned{color:#2e7d32}
 .cell-progress.interviewed{color:#b54708}
 .status-dot{width:7px;height:7px;border-radius:50%;justify-self:end;background:#dde2ea}
-.status-dot.connect{background:#43a047}
-.status-dot.reject{background:#e53935}
+.status-dot.fit{background:#43a047}
+.status-dot.unfit{background:#e53935}
 .status-dot.email{background:#1565c0}
 #sidebar-footer{padding:8px 10px;border-top:1px solid #f0f2f5;color:#98a2b3;font-size:11px;display:flex;justify-content:space-between;flex-shrink:0}
 
@@ -97,10 +109,13 @@ select+select{margin-top:7px}
 .header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
 .detail-submeta{font-size:12px;color:#777;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .header-email{font-size:12px;color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
-.btn-connect{background:#fff;color:#2e7d32;border:1.5px solid #43a047;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-connect{background:#fff;color:#2e7d32;border:1.5px solid #43a047;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
 .btn-connect:hover{background:#f1f8f1}
 .btn-connect.active{background:#2e7d32;color:#fff;border-color:#2e7d32}
-.btn-reject{background:#fff;color:#c62828;border:1.5px solid #e53935;padding:5px 18px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-pending{background:#fff;color:#555;border:1.5px solid #b8c0cc;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-pending:hover{background:#f5f7fa}
+.btn-pending.active{background:#616161;color:#fff;border-color:#616161}
+.btn-reject{background:#fff;color:#c62828;border:1.5px solid #e53935;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
 .btn-reject:hover{background:#fdf2f2}
 .btn-reject.active{background:#c62828;color:#fff;border-color:#c62828}
 
@@ -112,14 +127,13 @@ select+select{margin-top:7px}
 .char-count{font-size:11px;color:#b8c0cc;text-align:right;margin-top:4px}
 .char-count.warn{color:#e67e22}
 .char-count.over{color:#e53935}
-.action-stack{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.action-stack{display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:520px}
 .action-row{display:flex;gap:8px;align-items:center}
-.progress-select{width:132px;padding:5px 8px;border:1px solid #d0d8e4;border-radius:5px;background:#fff;color:#344054;font-size:12px;outline:none}
+.status-comment-row{display:flex;align-items:center;gap:7px;width:100%}
+.progress-select{width:118px;flex:0 0 118px;padding:5px 8px;border:1px solid #d0d8e4;border-radius:5px;background:#fff;color:#344054;font-size:12px;outline:none}
 .progress-select:focus{border-color:#4a90d9}
-.comment-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 0 12px}
-.comment-tag{border:1px solid #d0d8e4;background:#fff;color:#344054;border-radius:14px;padding:3px 7px;font-size:11px;display:inline-flex;align-items:center;gap:5px}
-.comment-tag button{border:0;background:transparent;color:#98a2b3;cursor:pointer;font-size:12px;line-height:1;padding:0}
-.comment-input{min-width:160px;flex:1;border:1px solid #e0e4ea;border-radius:14px;padding:4px 9px;font-size:11px;outline:none;background:#fafbfc;color:#333}
+.comment-bar{display:flex;align-items:center;justify-content:flex-end;margin:0;min-width:142px;max-width:160px}
+.comment-input{width:154px;flex:0 1 154px;border:1px solid #e0e4ea;border-radius:14px;padding:4px 9px;font-size:11px;outline:none;background:#fafbfc;color:#333}
 .comment-input:focus{border-color:#4a90d9;background:#fff}
 .two-col{display:flex;gap:10px;margin-bottom:10px}
 .two-col .section{flex:1;margin-bottom:0}
@@ -149,6 +163,11 @@ select+select{margin-top:7px}
 .library-value.red{color:#c62828;font-weight:700}
 .library-records{display:flex;flex-direction:column;gap:5px}
 .library-record{font-size:12px;color:#344054;line-height:1.45;background:#fafbfc;border:1px solid #eef1f5;border-radius:5px;padding:6px 8px}
+.library-record.remark{display:flex;align-items:flex-start;gap:8px}
+.record-body{min-width:0;flex:1}
+.record-label{font-weight:700;color:#667085;margin-right:4px}
+.record-time{font-size:10px;color:#98a2b3;margin-top:2px}
+.record-remove{border:0;background:transparent;color:#98a2b3;cursor:pointer;font-size:12px;line-height:1;padding:2px}
 
 .exp-list{display:flex;flex-direction:column;gap:10px}
 .exp-item{display:flex;gap:10px;align-items:flex-start}
@@ -207,10 +226,16 @@ select+select{margin-top:7px}
         </div>
         <div class="panel-content">
           <div class="filter-line">
-            <input id="project-filter" placeholder="搜索项目 / 全部项目" oninput="renderProjectList(); filterList()" onchange="renderProjectList(); filterList()">
+            <div class="project-select" id="project-select">
+              <input id="project-filter" type="hidden" value="">
+              <button class="project-select-toggle" id="project-select-toggle" onclick="toggleProjectSelect(event)">全部项目</button>
+              <div class="project-menu" onclick="event.stopPropagation()">
+                <input class="project-menu-search" id="project-menu-search" placeholder="搜索项目" oninput="renderProjectList()">
+                <div class="project-list" id="project-list"></div>
+              </div>
+            </div>
             <select id="progress-filter" onchange="filterList()"></select>
           </div>
-          <div class="project-list" id="project-list"></div>
           <div class="filter-hint">项目支持搜索；最高到达进度和搜索词会同时生效。</div>
         </div>
       </div>
@@ -223,12 +248,12 @@ select+select{margin-top:7px}
 </div>
 
 <div id="bottombar">
-  <div class="cnt-group"><span class="cnt-label">准确</span><span class="cnt-val green" id="cnt-connect">0</span></div>
-  <div class="cnt-group"><span class="cnt-label">不准确</span><span class="cnt-val red" id="cnt-reject">0</span></div>
-  <div class="cnt-group"><span class="cnt-label">未标记</span><span class="cnt-val gray" id="cnt-skip">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">合适</span><span class="cnt-val green" id="cnt-fit">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">待定</span><span class="cnt-val gray" id="cnt-pending">0</span></div>
+  <div class="cnt-group"><span class="cnt-label">不合适</span><span class="cnt-val red" id="cnt-unfit">0</span></div>
   <div id="bottombar-btns">
     <button class="btn-export" onclick="exportDecisions()">导出当前视图</button>
-    <button class="btn-copy" onclick="copyAccurateList()">复制准确名单</button>
+    <button class="btn-copy" onclick="copyFitList()">复制合适名单</button>
   </div>
 </div>
 
@@ -382,6 +407,16 @@ const progressLabels = {
   not_accept:'不接受'
 };
 const progressOrder = ['unselected','communicating','interested','aligned','interviewed','not_accept'];
+const projectDates = {
+  'ServiceNow Channel Check':'2026-06-15',
+  'Salesforce Agentforce SI':'2026-06-16',
+  'Snowflake Consumption':'2026-06-15',
+  'Cloudflare Fastly Akamai Channel':'2026-06-14',
+  'Palo Alto Channel':'2026-06-17',
+  'Nebius Construction Progress':'2026-06-10',
+  'CSP NAND Sourcing':'2026-06-14',
+  'Semtech TIA Optical Modules':'2026-06-16'
+};
 const emailLabels = {
   all:'全部邮箱',
   verified:'有邮箱',
@@ -393,7 +428,7 @@ const decisions = {};
 let currentVanity = CANDIDATES[0]?.vanity || null;
 
 CANDIDATES.forEach(c => {
-  decisions[c.vanity] = { action: 'skip', note: c.connect_message || '', edited: false, tags: [] };
+  decisions[c.vanity] = { action: 'pending', note: c.connect_message || '', edited: false, tags: [] };
 });
 
 function init() {
@@ -405,21 +440,39 @@ function init() {
 }
 
 function renderProjectList() {
-  const q = document.getElementById('project-filter')?.value.trim().toLowerCase() || '';
+  const selected = document.getElementById('project-filter')?.value || '';
+  const q = document.getElementById('project-menu-search')?.value.trim().toLowerCase() || '';
   const projects = unique(CANDIDATES.map(c => c.project));
-  const visible = projects.filter(project => !q || q === '全部项目' || project.toLowerCase().includes(q));
-  const exact = projects.find(project => project.toLowerCase() === q);
+  const visible = projects.filter(project => !q || project.toLowerCase().includes(q) || projectDateText(project).toLowerCase().includes(q));
+  const projectOptionsHtml = visible.map(project => `<button class="project-option ${selected === project ? 'active' : ''}" title="${esc(projectOptionText(project))}" onclick="setProjectFilter('${escAttr(project)}')"><span class="project-name">${esc(shortProject(project))}</span><span class="project-date">${esc(projectDateText(project))}</span></button>`).join('');
+  document.getElementById('project-select-toggle').textContent = selected ? projectOptionText(selected) : '全部项目';
   document.getElementById('project-list').innerHTML = [
-    `<button class="project-option ${!q || q === '全部项目' ? 'active' : ''}" onclick="setProjectFilter('')">全部项目</button>`,
-    ...visible.map(project => `<button class="project-option ${exact === project ? 'active' : ''}" title="${esc(project)}" onclick="setProjectFilter('${escAttr(project)}')">${esc(shortProject(project))}</button>`)
+    `<button class="project-option ${!selected ? 'active' : ''}" onclick="setProjectFilter('')"><span class="project-name">全部项目</span><span class="project-date">所有项目日期</span></button>`,
+    projectOptionsHtml || '<div class="project-empty">没有匹配项目</div>'
   ].join('');
 }
 
 function setProjectFilter(project) {
   document.getElementById('project-filter').value = project;
+  const search = document.getElementById('project-menu-search');
+  if (search) search.value = '';
+  document.getElementById('project-select')?.classList.remove('open');
   renderProjectList();
   filterList();
 }
+
+function toggleProjectSelect(event) {
+  event.stopPropagation();
+  const box = document.getElementById('project-select');
+  const nextOpen = !box.classList.contains('open');
+  box.classList.toggle('open', nextOpen);
+  renderProjectList();
+  if (nextOpen) setTimeout(() => document.getElementById('project-menu-search')?.focus(), 0);
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('project-select')?.classList.remove('open');
+});
 
 function fillSelect(id, options) {
   document.getElementById(id).innerHTML = options.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
@@ -427,10 +480,10 @@ function fillSelect(id, options) {
 
 function filteredCandidates() {
   const q = document.getElementById('search-box').value.toLowerCase();
-  const project = document.getElementById('project-filter').value.trim().toLowerCase();
+  const project = document.getElementById('project-filter').value;
   const progress = document.getElementById('progress-filter').value;
   return CANDIDATES.filter(c => {
-    if (project && project !== '全部项目' && !c.project.toLowerCase().includes(project)) return false;
+    if (project && c.project !== project) return false;
     if (progress !== 'all' && c.progress !== progress) return false;
     if (q) {
       const hay = [c.name, c.current_company, c.current_title, c.headline, c.email, c.project, c.projects.join(' '), c.source].join(' ').toLowerCase();
@@ -447,7 +500,7 @@ function renderList() {
 
   const rowsHtml = filtered.map(c => {
     const d = decisions[c.vanity];
-    const dotCls = d.action === 'connect' ? 'connect' : d.action === 'reject' ? 'reject' : c.email_status === 'verified' ? 'email' : '';
+    const dotCls = d.action === 'fit' ? 'fit' : d.action === 'unfit' ? 'unfit' : c.email_status === 'verified' ? 'email' : '';
     const selCls = c.vanity === currentVanity ? ' selected' : '';
     const email = c.email || emailLabels[c.email_status] || '';
     const history = compactHistory(c.positions);
@@ -456,7 +509,7 @@ function renderList() {
         <div class="cand-name">${esc(c.name)}</div>
         <div class="cand-sub" title="${esc(history)}">${esc(history)}</div>
       </div>
-      <div class="cell-project" title="${esc(c.project)}">${esc(shortProject(c.project))}</div>
+      <div class="cell-project" title="${esc(projectOptionText(c.project))}">${esc(shortProject(c.project))} · ${esc(formatProjectDate(c.project))}</div>
       <div class="cell-progress ${esc(c.progress)}">${esc(progressLabels[c.progress])}</div>
       <div class="cell-score">${esc(c.score)}</div>
       <div class="cell-company optional-col" title="${esc(c.current_company)}">${esc(c.current_company)}</div>
@@ -532,18 +585,21 @@ function renderDetail(vanity) {
       </div>
     </div>`;
   }).join('');
-  const caActive = d.action === 'connect' ? ' active' : '';
-  const reActive = d.action === 'reject' ? ' active' : '';
+  const fitActive = d.action === 'fit' ? ' active' : '';
+  const pendingActive = d.action === 'pending' ? ' active' : '';
+  const unfitActive = d.action === 'unfit' ? ' active' : '';
   const emailDisplay = c.email || emailLabels[c.email_status] || '待索取';
-  const commentHtml = `<div class="comment-bar">
-      ${(d.tags || []).map((tag, i) => `<span class="comment-tag">${esc(tag)}<button onclick="removeCommentTag(${i})" title="删除标签">×</button></span>`).join('')}
-      <input class="comment-input" id="comment-input" placeholder="添加备注标签，回车确认" onkeydown="onCommentKeydown(event)">
-    </div>`;
+  const commentHtml = `<div class="comment-bar"><input class="comment-input" id="comment-input" placeholder="备注，回车确认" onkeydown="onCommentKeydown(event)"></div>`;
   const progressSelectHtml = `<select class="progress-select" onchange="setProgressFromSelect(this.value)">${progressOrder.map(key => `<option value="${esc(key)}" ${key === c.progress ? 'selected' : ''}>${esc(progressLabels[key])}</option>`).join('')}</select>`;
-  const otherRecords = libraryOtherRecords(c);
+  const otherRecords = libraryOtherRecords(c, d);
   const otherRecordsHtml = otherRecords.length ? `<div class="section">
       <div class="section-title">库内其他记录</div>
-      <div class="library-records">${otherRecords.map(record => `<div class="library-record">${esc(record)}</div>`).join('')}</div>
+      <div class="library-records">${otherRecords.map(record => {
+        if (record.type === 'remark') {
+          return `<div class="library-record remark"><div class="record-body"><span class="record-label">备注</span>${esc(record.text)}<div class="record-time">${esc(formatCommentTime(record.createdAt))}</div></div><button class="record-remove" onclick="removeCommentTag(${record.index})" title="删除备注">×</button></div>`;
+        }
+        return `<div class="library-record">${esc(record.text)}</div>`;
+      }).join('')}</div>
     </div>` : '';
 
   document.getElementById('detail').className = '';
@@ -555,15 +611,18 @@ function renderDetail(vanity) {
       <div class="header-actions">
         <div class="action-stack">
           <div class="action-row">
-            <button class="btn-connect${caActive}" onclick="setAction('connect')">准确</button>
-            <button class="btn-reject${reActive}" onclick="setAction('reject')">不准确</button>
+            <button class="btn-connect${fitActive}" onclick="setAction('fit')">合适</button>
+            <button class="btn-pending${pendingActive}" onclick="setAction('pending')">待定</button>
+            <button class="btn-reject${unfitActive}" onclick="setAction('unfit')">不合适</button>
           </div>
-          ${progressSelectHtml}
+          <div class="status-comment-row">
+            ${progressSelectHtml}
+            ${commentHtml}
+          </div>
         </div>
       </div>
     </div>
     <div class="detail-submeta">${esc(submetaParts)}</div>
-    ${commentHtml}
 
     <div class="section connect-section">
       <textarea id="connect-msg" onkeyup="onMsgEdit()">${esc(d.note)}</textarea>
@@ -616,7 +675,7 @@ function filterList() { renderList(); }
 function setAction(action) {
   if (!currentVanity) return;
   const d = decisions[currentVanity];
-  d.action = d.action === action ? 'skip' : action;
+  d.action = action;
   const ta = document.getElementById('connect-msg');
   if (ta) d.note = ta.value;
   renderDetail(currentVanity);
@@ -632,13 +691,14 @@ function onMsgEdit() {
 }
 
 function onCommentKeydown(event) {
-  if (event.key !== 'Enter' && event.key !== ',') return;
+  if (event.key !== 'Enter') return;
   event.preventDefault();
   const input = event.currentTarget;
-  const tag = input.value.replace(/^#+/, '').trim();
-  if (!tag || !currentVanity) return;
+  const text = input.value.replace(/^#+/, '').trim();
+  if (!text || !currentVanity) return;
   const tags = decisions[currentVanity].tags || (decisions[currentVanity].tags = []);
-  if (!tags.includes(tag)) tags.push(tag);
+  const exists = tags.some(tag => normalizeCommentTag(tag).text === text);
+  if (!exists) tags.push({ text, createdAt: new Date().toISOString() });
   input.value = '';
   renderDetail(currentVanity);
 }
@@ -661,20 +721,20 @@ function updateCharCount() {
 
 function updateCounts() {
   const vals = Object.values(decisions);
-  document.getElementById('cnt-connect').textContent = vals.filter(d => d.action === 'connect').length;
-  document.getElementById('cnt-reject').textContent = vals.filter(d => d.action === 'reject').length;
-  document.getElementById('cnt-skip').textContent = vals.filter(d => d.action === 'skip').length;
+  document.getElementById('cnt-fit').textContent = vals.filter(d => d.action === 'fit').length;
+  document.getElementById('cnt-pending').textContent = vals.filter(d => d.action === 'pending').length;
+  document.getElementById('cnt-unfit').textContent = vals.filter(d => d.action === 'unfit').length;
 }
 
 function clearAll() {
-  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'skip'; });
+  CANDIDATES.forEach(c => { decisions[c.vanity].action = 'pending'; });
   if (currentVanity) renderDetail(currentVanity);
   renderList();
 }
 
-function copyAccurateList() {
-  const list = CANDIDATES.filter(c => decisions[c.vanity]?.action === 'connect').map(c => c.vanity).join('\n');
-  if (!list) { showToast('没有标记准确的人选'); return; }
+function copyFitList() {
+  const list = CANDIDATES.filter(c => decisions[c.vanity]?.action === 'fit').map(c => c.vanity).join('\n');
+  if (!list) { showToast('没有标记合适的人选'); return; }
   navigator.clipboard.writeText(list).then(() => showToast(`已复制 ${list.split('\n').length} 人`));
 }
 
@@ -691,7 +751,7 @@ function exportDecisions() {
     },
     decisions:CANDIDATES.filter(c => visible.has(c.vanity)).map(c => {
       const d = decisions[c.vanity];
-      return { vanity:c.vanity, action:d.action, project:c.project, progress:c.progress, email:c.email, tags:d.tags || [], note:d.action === 'connect' ? d.note : undefined, edited:d.edited };
+      return { vanity:c.vanity, action:d.action, project:c.project, progress:c.progress, email:c.email, remarks:(d.tags || []).map(normalizeCommentTag), note:d.action === 'fit' ? d.note : undefined, edited:d.edited };
     })
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
@@ -712,6 +772,16 @@ function showToast(msg) {
 function shortProject(project) {
   return String(project || '').replace(/ Channel Check| Consumption| Progress| Optical Modules| Sourcing| SI/g, '').trim() || project;
 }
+function projectDateText(project) {
+  return projectDates[project] || '日期待补充';
+}
+function formatProjectDate(project) {
+  const date = projectDateText(project);
+  return date.length === 10 ? date.slice(5) : date;
+}
+function projectOptionText(project) {
+  return `${shortProject(project)} · ${projectDateText(project)}`;
+}
 function compactHistory(positions) {
   return (positions || [])
     .slice(0, 2)
@@ -719,10 +789,23 @@ function compactHistory(positions) {
     .filter(Boolean)
     .join(' / ');
 }
-function libraryOtherRecords(c) {
-  return (c.projects || [])
+function libraryOtherRecords(c, decision) {
+  const projectRecords = (c.projects || [])
     .filter(project => project !== c.project)
-    .map(project => `${project} · ${progressLabels[c.progress] || c.connect_status || ''}`);
+    .map(project => ({ type:'project', text:`${project} · ${progressLabels[c.progress] || c.connect_status || ''}` }));
+  const remarkRecords = (decision?.tags || []).map((tag, index) => ({ type:'remark', index, ...normalizeCommentTag(tag) }));
+  return [...projectRecords, ...remarkRecords];
+}
+function normalizeCommentTag(tag) {
+  if (typeof tag === 'string') return { text:tag, createdAt:'' };
+  return { text:tag?.text || '', createdAt:tag?.createdAt || '' };
+}
+function formatCommentTime(iso) {
+  if (!iso) return '刚刚';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function unique(arr) { return [...new Set(arr)].sort(); }
 function esc(s) {
